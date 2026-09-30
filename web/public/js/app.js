@@ -35,6 +35,7 @@ const FKEYS = [
   { l: 'SHIFT', a: 'shift', c: 'shift' }, { l: 'MODE', a: 'mode', s: 'DEG/RAD' }, { l: '◀', a: 'left' }, { l: '▶', a: 'right' }, { l: 'S⇔D', a: 'sd', s: 'fraction' }, { l: 'x', i: 'x', c: 'var', s: 'variable' },
   { l: '√▫', i: '√(', s: '∛', si: '∛(' }, { l: 'x<sup>2</sup>', i: '²', s: 'x³', si: '³' }, { l: 'x<sup>▫</sup>', i: '^', s: 'x⁻¹', si: '^(−1)' }, { l: 'log', i: 'log(', s: '10<sup>x</sup>', si: '10^(' }, { l: 'ln', i: 'ln(', s: 'e<sup>x</sup>', si: 'e^(' }, { l: '=', i: '=', c: 'var', s: 'equation' },
   { l: 'sin', i: 'sin(', s: 'sin⁻¹', si: 'sin⁻¹(' }, { l: 'cos', i: 'cos(', s: 'cos⁻¹', si: 'cos⁻¹(' }, { l: 'tan', i: 'tan(', s: 'tan⁻¹', si: 'tan⁻¹(' }, { l: '(', i: '(' }, { l: ')', i: ')' }, { l: 'x!', i: '!', s: '|x|', si: 'abs(' },
+  { l: '∞', i: '∞', s: 'infinity' }, { l: 'Ω', i: 'Ω', s: 'omega' }, { l: 'φ', i: 'φ', s: 'golden' }, { l: 'θ', i: 'θ', c: 'var', s: 'theta' }, { l: '±', i: '±', s: 'plus/minus' }, { l: 'SYM', a: 'sym', c: 'symk', s: 'more signs' },
   { l: '%', i: '%' }, { l: '<span style="font-family:Georgia,serif;font-size:17px">π</span>', i: 'π', s: 'e', si: 'e' }, { l: 'of', i: ' of ', s: 'percent of' }, { l: 'a/b', i: '/', s: 'fraction' }, { l: '(−)', i: '−', s: 'negative' }, { l: 'Ans', i: 'Ans', s: 'last answer' },
 ];
 const NKEYS = [
@@ -46,6 +47,22 @@ const NKEYS = [
 
 const C = { toks: [], cur: 0, shift: false, done: false, result: null, rootIdx: 0, showFrac: false };
 
+// the SYM key: a pop-up panel of extra signs, like a real calculator's CATALOG
+const SYMS = [['∞', 'infinity'], ['Ω', 'omega constant'], ['φ', 'golden ratio'], ['τ', 'tau = 2π'], ['γ', 'Euler gamma'], ['π', 'pi'], ['e', "Euler's number"], ['θ', 'theta (like x)'],
+  ['°', 'degrees'], ['±', 'plus or minus'], ['≠', 'not equal'], ['<', 'less than'], ['>', 'greater than'], ['≤', 'less or equal'], ['≥', 'greater or equal'], ['=', 'equals'],
+  ['√(', 'square root'], ['∛(', 'cube root'], ['^', 'power'], ['²', 'squared'], ['³', 'cubed'], ['!', 'factorial'], ['!!', 'double factorial'], ['%', 'percent'],
+  [' mod ', 'remainder'], ['abs(', 'absolute value'], ['ln(', 'natural log'], ['log(', 'log base 10'], ['sin⁻¹(', 'inverse sin'], ['(', 'open bracket'], [')', 'close bracket'], [', ', 'list (for mean)']];
+function toggleSym(force) {
+  const box = $('#symbox'), on = force ?? box.hidden;
+  box.hidden = !on; if (on) sfx.page();
+}
+function buildSym() {
+  const face = t => { const u = t.trim(); return u === '(' || u === ')' ? u : u.replace(/\($/, '') || u; };
+  $('#symbox').innerHTML = `<div class="symhead">SYMBOLS <button class="symx" title="Close">✕</button></div><div class="symgrid">` + SYMS.map(([t, d], i) => `<button data-i="${i}" title="${d}"><b>${esc(face(t))}</b><small>${d}</small></button>`).join('') + '</div>';
+  $$('#symbox .symgrid button').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); sfx.key('fn'); insert(SYMS[+b.dataset.i][0]); drawLCD(); toggleSym(false); }));
+  $('#symbox .symx').addEventListener('pointerdown', e => { e.preventDefault(); toggleSym(false); });
+}
+
 function buildKeys() {
   const mk = (list, host) => list.forEach(k => {
     const w = document.createElement('div'); w.className = 'kw';
@@ -54,7 +71,7 @@ function buildKeys() {
     b.addEventListener('pointerdown', e => { e.preventDefault(); press(k); });
     host.appendChild(w);
   });
-  mk(FKEYS, $('#fkeys')); mk(NKEYS, $('#nkeys'));
+  mk(FKEYS, $('#fkeys')); mk(NKEYS, $('#nkeys')); buildSym();
 }
 const keyByAction = a => [...FKEYS, ...NKEYS].find(k => k.a === a);
 const keyByIns = i => [...NKEYS, ...FKEYS].find(k => k.i === i);
@@ -84,6 +101,7 @@ function press(k, silent) {
       case 'del': if (C.done) { C.done = false; C.cur = C.toks.length; } if (C.cur > 0) { C.toks.splice(C.cur - 1, 1); C.cur--; } break;
       case 'ac': C.toks = []; C.cur = 0; C.done = false; C.result = null; C.showFrac = false; sfx.clear(); break;
       case 'eq': evaluate(); break;
+      case 'sym': toggleSym(); return;
     }
   } else insert(sh && k.si ? k.si : k.i);
   drawLCD();
@@ -95,7 +113,7 @@ const SEGS = (() => {
   const v = (x, y1, y2) => `${x},${y1} ${x + 2.2},${y1 + 2.2} ${x + 2.2},${y2 - 2.2} ${x},${y2} ${x - 2.2},${y2 - 2.2} ${x - 2.2},${y1 + 2.2}`;
   return { a: h(4.5, 20.5, 3), b: v(21.5, 4, 21.5), c: v(21.5, 22.5, 40), d: h(4.5, 20.5, 41), e: v(3.5, 22.5, 40), f: v(3.5, 4, 21.5), g: h(4.5, 20.5, 22) };
 })();
-const GLYPH = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg', '-': 'g', E: 'afged', r: 'eg', o: 'cdeg', t: 'fged', U: 'bcdef', F: 'afge', A: 'abcefg', L: 'fed', S: 'afgcd', n: 'ceg', d: 'bcdeg', b: 'cdefg', P: 'abefg', C: 'adef', H: 'bcefg', '⌟': 'cd', ' ': '' };
+const GLYPH = { i: 'c', 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg', '-': 'g', E: 'afged', r: 'eg', o: 'cdeg', t: 'fged', U: 'bcdef', F: 'afge', A: 'abcefg', L: 'fed', S: 'afgcd', n: 'ceg', d: 'bcdeg', b: 'cdefg', P: 'abefg', C: 'adef', H: 'bcefg', '⌟': 'cd', ' ': '' };
 const CELLS = 13;
 function drawSeg(text) {
   const cells = [];
@@ -116,6 +134,7 @@ function drawSeg(text) {
   const el = $('#seg'); el.setAttribute('viewBox', `-2 0 ${CELLS * W + 2} 44`); el.innerHTML = svg;
 }
 function lcdNumber(v) {
+  if (v === Infinity) return 'inF'; if (v === -Infinity) return '-inF';
   if (!isFinite(v)) return 'Error';
   v = clean(v); const a = Math.abs(v);
   if (a !== 0 && (a >= 1e10 || a < 1e-9)) { const [m, e] = v.toExponential(5).split('e'); return String(parseFloat(m)) + 'E' + (+e); }
@@ -133,11 +152,12 @@ function drawLCD() {
   FKEYS[0].el.classList.toggle('on', C.shift);
   const r = C.result;
   $('#indFrac').classList.toggle('on', !!(r && C.showFrac && r.frac));
-  $('#indX').classList.toggle('on', !!(r && r.kind === 'eqn' && r.roots));
+  $('#indX').classList.toggle('on', !!(r && (r.kind === 'eqn' || r.kind === 'pm') && r.roots));
   let seg = '0', xlab = '';
   if (r && r.error) seg = 'Error';
   else if (r) {
-    if (r.kind === 'eqn') {
+    if (r.kind === 'pm') { const i = C.rootIdx % 2; seg = lcdNumber(r.roots[i]); xlab = i ? '−:' : '+:'; }
+    else if (r.kind === 'eqn') {
       if (r.roots?.length) { const i = C.rootIdx % r.roots.length; seg = lcdNumber(r.roots[i]); xlab = r.roots.length > 1 ? `x${i + 1}=` : 'x='; }
       else seg = r.lcd;
     } else if (r.kind === 'check') seg = r.lcd;
@@ -147,6 +167,7 @@ function drawLCD() {
   } else if (!C.toks.length) seg = '0';
   else seg = '';
   $('#xlab').innerHTML = xlab;
+  $('#bigSteps').hidden = !(C.result && !C.result.error && C.done);
   drawSeg(seg);
 }
 
@@ -289,7 +310,7 @@ addEventListener('keydown', e => {
   else if (e.key === 'Escape' || e.key === 'Delete') k = keyByAction('ac');
   else if (e.key === 'ArrowLeft') k = keyByAction('left');
   else if (e.key === 'ArrowRight') k = keyByAction('right');
-  else if (/^[0-9.+()^!%x=]$/.test(e.key) || map[e.key]) k = keyByIns(map[e.key] || e.key) || { i: map[e.key] || e.key };
+  else if (/^[0-9.+()^!%x=,<>∞Ωωφθτγ°±≠≤≥√π]$/.test(e.key) || map[e.key]) k = keyByIns(map[e.key] || e.key) || { i: map[e.key] || e.key };
   else if (/^[a-z]$/i.test(e.key)) k = { i: e.key.toLowerCase() };
   if (!k) return;
   e.preventDefault(); press(k);
@@ -572,7 +593,23 @@ function geoSolve(sound) {
 }
 
 // ---------- fit on one screen + full-page zoom ----------
+$('#bigSteps').onclick = () => { if (C.result && !C.result.error) showWork(C.result); };
+function setBig(on) {
+  document.body.classList.toggle('calcbig', on);
+  $('#calcZoom').innerHTML = on ? '✕ SMALL' : '⛶ BIG';
+  if (on && !$('#view-calc').classList.contains('on')) show('calc');
+  sfx.page(); requestAnimationFrame(() => { fit(); refitAll(); });
+}
+$('#calcZoom').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); setBig(!document.body.classList.contains('calcbig')); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('calcbig') && $('#work').hidden && !$('.notebook.zoomed')) { if (!$('#symbox').hidden) toggleSym(false); else setBig(false); e.stopImmediatePropagation(); } }, true);
 function fit() {
+  const calcEl = $('#calc');
+  if (document.body.classList.contains('calcbig')) {
+    calcEl.style.zoom = '';
+    const h = calcEl.offsetHeight + 30, w = calcEl.offsetWidth + 30;
+    calcEl.style.zoom = Math.max(0.4, Math.min((innerHeight - 24) / h, (innerWidth - 24) / w, 2.4)).toFixed(3);
+    return;
+  }
   const desk = matchMedia('(min-width: 1101px) and (min-height: 560px)').matches;
   document.body.classList.toggle('fitted', desk);
   const calc = $('#calc');
@@ -725,4 +762,4 @@ if (params.get('level')) S.school.level = +params.get('level');
 show(params.get('view') || 'calc');
 if (params.get('q')) runExample(params.get('q'));
 startMusicIfWanted(); setTimeout(unlockAudio, 400);
-window.__mh = { showWork, S, C, P, press, runExample, solve, newProblem, check, keyByAction, drawCtl, fit, updateZoom, gctl, renderGList, geoForm };
+window.__mh = { setBig, showWork, S, C, P, press, runExample, solve, newProblem, check, keyByAction, drawCtl, fit, updateZoom, gctl, renderGList, geoForm };

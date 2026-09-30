@@ -56,6 +56,7 @@
       <div class="calc" id="calc">
         <div class="calc-top">
           <div class="brand"><b>MATH-helper</b><i>fx-MH 100 · SCHOOL</i></div>
+          <button class="calcZoom" id="calcZoom" title="Make the calculator fill the screen">⛶ BIG</button>
           <div class="solar"><span></span><span></span><span></span><span></span></div>
         </div>
         <div class="bezel">
@@ -65,8 +66,8 @@
             <div class="line2"><span class="xlab" id="xlab"></span><svg id="seg" class="seg"></svg></div>
           </div>
         </div>
-        <div class="fkeys" id="fkeys"></div>
-        <div class="nkeys" id="nkeys"></div>
+        <div class="symbox" id="symbox" hidden></div>
+        <div class="keys"><div class="fkeys" id="fkeys"></div><div class="nkeys" id="nkeys"></div></div>
         <div class="calc-foot">NATURAL · STEP-BY-STEP</div>
       </div>
       <div class="sidecol">
@@ -214,6 +215,7 @@
   </div>
 </div>
 <div id="confetti"></div>
+<button class="bigsteps" id="bigSteps" hidden>✍️ Show your work</button>
 
 <div class="work" id="work" hidden>
   <div class="worksheet">
@@ -256,6 +258,9 @@
       <li><b>x</b> and the pink <b>=</b> make equations: <i>2x + 5 = 17</i> or <i>x² − 5x + 6 = 0</i>. Press <b>=</b> again to see a second answer.</li>
       <li><b>SHIFT</b> gives the gold labels (sin⁻¹, ∛, 10ˣ…). <b>S⇔D</b> switches fraction ↔ decimal. <b>MODE</b> switches degrees/radians.</li>
       <li><b>◀ ▶</b> move the cursor, <b>DEL</b> deletes, <b>AC</b> clears. On a keyboard: Enter = equals, Backspace, Esc.</li>
+      <li><b>⛶ BIG</b> (top of the calculator) makes it fill the whole screen; <b>✕ SMALL</b> or Esc puts it back.</li>
+      <li>The <b>∞ Ω φ θ ±</b> row and the <b>SYM</b> key add more signs: infinity, the omega constant, the golden ratio, theta, plus-or-minus (two answers), τ, γ, degrees °, ≠, &lt; &gt; ≤ ≥ and more. Every one is explained in the steps.</li>
+      <li><b>✍️ Show your work</b> writes the work out clearly, line by line, like you'd hand it in — step through it or print it.</li>
       <li>You can type words too: <i>what is 12 times 7</i>, <i>5 squared</i>, <i>17 mod 5</i>, or <i>2x + 3 &gt; 7</i>. Enter a single number to see its factors.</li>
     </ul>
     <h3>✍️ Draw</h3>

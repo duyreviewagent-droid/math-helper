@@ -437,8 +437,16 @@ $('#rVol').value = S.music.vol;
 $('#rVol').oninput = e => { S.music.vol = +e.target.value; setMusicVolume(S.music.vol); };
 $('#sfxBtn').onclick = () => { S.sfx = !S.sfx; setSfx(S.sfx); sfx.click(); drawRadio(); };
 setSfx(S.sfx);
-addEventListener('pointerdown', () => startMusicIfWanted(), { once: true });
-addEventListener('keydown', () => startMusicIfWanted(), { once: true });
+// Music plays by itself as soon as the app opens. Browsers only allow sound after the first click or key,
+// so if it is held back, the radio shows a small "click anywhere" note and starts on the very first touch.
+function unlockAudio() {
+  const c = audioCtx(); if (!c) return;
+  const waiting = c.state !== 'running';
+  $('#radio').classList.toggle('waiting', waiting && radio.playing);
+  if (!waiting) ['pointerdown', 'keydown', 'touchend', 'click'].forEach(ev => removeEventListener(ev, unlockAudio, true));
+  else c.resume().then(() => { if (c.state === 'running') unlockAudio(); });
+}
+['pointerdown', 'keydown', 'touchend', 'click'].forEach(ev => addEventListener(ev, unlockAudio, true));
 
 // ---------- start ----------
 buildKeys(); buildPractice(); renderEmpty(); renderHistory(); drawLCD(); drawRadio(); drawScores();
@@ -446,4 +454,5 @@ if (params.get('topic')) S.school.topic = params.get('topic');
 if (params.get('level')) S.school.level = +params.get('level');
 show(params.get('view') || 'calc');
 if (params.get('q')) runExample(params.get('q'));
+startMusicIfWanted(); setTimeout(unlockAudio, 400);
 window.__mh = { S, C, P, press, runExample, solve, newProblem, check, keyByAction };

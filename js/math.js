@@ -4,14 +4,14 @@
 export class MathError extends Error {}
 
 const FUNCS = ['asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'sqrt', 'cbrt', 'log', 'ln', 'abs'];
-const WORDS = [...FUNCS, 'mod', 'pi', 'ans', 'of', 'e', 'x', 'y'].sort((a, b) => b.length - a.length);
+const WORDS = [...FUNCS, 'mod', 'pi', 'ans', 'of', 'infinity', 'inf', 'omega', 'phi', 'tau', 'theta', 'e', 'x', 'y'].sort((a, b) => b.length - a.length);
 export const FN_LABEL = { sin: 'sin', cos: 'cos', tan: 'tan', asin: 'sin⁻¹', acos: 'cos⁻¹', atan: 'tan⁻¹', sqrt: '√', cbrt: '∛', log: 'log', ln: 'ln', abs: 'abs' };
 
 // ---------- numbers ----------
 export function clean(v) {
   if (!isFinite(v)) return v;
   if (Math.abs(v) < 1e-12) return 0;
-  return parseFloat(v.toPrecision(12));
+  return parseFloat(v.toPrecision(11));
 }
 export function fmt(v) {
   if (Number.isNaN(v)) return 'undefined';
@@ -57,6 +57,7 @@ function tokenize(src) {
   let s = String(src)
     .replace(/sin⁻¹/g, 'asin').replace(/cos⁻¹/g, 'acos').replace(/tan⁻¹/g, 'atan')
     .replace(/[−–—]/g, '-').replace(/[×·✕]/g, '*').replace(/÷/g, '/').replace(/²/g, '^2').replace(/³/g, '^3')
+    .replace(/∞/g, ' inf ').replace(/[Ωω]/g, ' omega ').replace(/[φϕ]/g, ' phi ').replace(/τ/g, ' tau ').replace(/γ/g, ' egamma ').replace(/θ/g, ' x ')
     .replace(/π/g, ' pi ').replace(/√/g, ' sqrt ').replace(/∛/g, ' cbrt ').replace(/\*\*/g, '^')
     .replace(/[\[{]/g, '(').replace(/[\]}]/g, ')').replace(/X/g, 'x');
   const out = []; let i = 0;
@@ -67,6 +68,7 @@ function tokenize(src) {
     if (m) { out.push({ k: 'num', v: parseFloat(m[0].replace(/,/g, '')) }); i += m[0].length; continue; }
     if (/[a-zA-Z]/.test(c)) {
       let word = /^[a-zA-Z]+/.exec(s.slice(i))[0]; i += word.length; word = word.toLowerCase();
+      if (word === 'egamma') { out.push({ k: 'const', v: 'egamma' }); continue; }
       while (word) {
         const w = WORDS.find(w => word.startsWith(w));
         if (!w) throw new MathError(`I don't know what "${word}" means. Try numbers, x, and keys like sin, √, log.`);
@@ -75,12 +77,15 @@ function tokenize(src) {
         else if (w === 'y') out.push({ k: 'var', name: 'y' });
         else if (w === 'of') out.push({ k: 'op', v: '*', of: true });
         else if (w === 'mod') out.push({ k: 'op', v: 'mod' });
+        else if (w === 'theta') out.push({ k: 'var' });
+        else if (w === 'infinity' || w === 'inf') out.push({ k: 'const', v: 'inf' });
         else out.push({ k: 'const', v: w });
         word = word.slice(w.length);
       }
       continue;
     }
     if (c === '!' && s[i + 1] === '!') { out.push({ k: 'op', v: '!!' }); i += 2; continue; }
+    if (c === '°') { out.push({ k: 'op', v: '°' }); i++; continue; }
     if ('+-*/^!%='.includes(c)) { out.push({ k: 'op', v: c }); i++; continue; }
     if (c === '(') { out.push({ k: 'lp' }); i++; continue; }
     if (c === ')') { out.push({ k: 'rp' }); i++; continue; }
@@ -123,7 +128,7 @@ export function parse(src) {
   }
   function postfix() {
     let n = primary();
-    while (isOp('!') || isOp('!!') || isOp('%')) n = { t: 'post', op: next().v, a: n };
+    while (isOp('!') || isOp('!!') || isOp('%') || isOp('°')) n = { t: 'post', op: next().v, a: n };
     return n;
   }
   function primary() {
@@ -169,7 +174,7 @@ export function show(n, o = {}, pp = 0, right = false) {
   const sym = { '+': ' + ', '-': ' − ', '*': ' × ', '/': ' ÷ ', mod: ' mod ' };
   switch (n.t) {
     case 'num': s = fmt(n.v); p = n.v < 0 ? (right || pp >= 5 ? 0 : 5) : 9; break;
-    case 'const': s = { pi: 'π', e: 'e', ans: 'Ans' }[n.name]; p = 9; break;
+    case 'const': s = { pi: 'π', e: 'e', ans: 'Ans', inf: '∞', omega: 'Ω', phi: 'φ', tau: 'τ', egamma: 'γ' }[n.name]; p = 9; break;
     case 'var': s = n.name || 'x'; p = 9; break;
     case 'fn': {
       const inner = show(n.a, o, 0);
@@ -202,14 +207,15 @@ const plain = n => show(n);
 
 // ---------- working it out ----------
 const DEG = Math.PI / 180;
+export const CONSTS = { pi: Math.PI, e: Math.E, inf: Infinity, omega: 0.5671432904097838, phi: (1 + Math.sqrt(5)) / 2, tau: 2 * Math.PI, egamma: 0.5772156649015329 };
 export function evalNode(n, ctx, x = 0) {
   const ev = m => evalNode(m, ctx, x);
   switch (n.t) {
     case 'num': return n.v;
     case 'var': return n.name === 'y' ? (ctx.yv ?? 0) : x;
-    case 'const': return n.name === 'pi' ? Math.PI : n.name === 'e' ? Math.E : (ctx.ans ?? 0);
+    case 'const': return CONSTS[n.name] ?? (ctx.ans ?? 0);
     case 'neg': return -ev(n.a);
-    case 'post': return n.op === '%' ? ev(n.a) / 100 : n.op === '!!' ? dfact(ev(n.a)) : fact(ev(n.a));
+    case 'post': return n.op === '%' ? ev(n.a) / 100 : n.op === '°' ? (ctx.deg !== false ? ev(n.a) : ev(n.a) * Math.PI / 180) : n.op === '!!' ? dfact(ev(n.a)) : fact(ev(n.a));
     case 'fn': return fnValue(n.name, ev(n.a), ctx).v;
     case 'bin': {
       const a = ev(n.a), b = ev(n.b);
@@ -301,10 +307,18 @@ function reduceNode(n, ctx) {
     case 'const':
       if (n.name === 'pi') return r(Math.PI, 'π (pi) is the distance around a circle divided by the distance across. It is about 3.14159.', 'Numbers');
       if (n.name === 'e') return r(Math.E, 'e is a special number, about 2.71828 (it shows up in growth and interest).', 'Numbers');
+      if (n.name === 'inf') return r(Infinity, '∞ (infinity) is not a normal number — it means "bigger than every number, and it never ends". Math with ∞ follows special rules.', 'Infinity');
+      if (n.name === 'omega') return r(CONSTS.omega, 'Ω (the omega constant) ≈ 0.567143 is the special number where Ω × e^Ω = 1. (In science class, Ω also means ohms — the unit for electrical resistance.)', 'Numbers');
+      if (n.name === 'phi') return r(CONSTS.phi, 'φ (phi) is the golden ratio: (1 + √5) ÷ 2 ≈ 1.618034. It shows up in sunflowers, pinecones, shells and art.', 'Numbers');
+      if (n.name === 'tau') return r(CONSTS.tau, 'τ (tau) = 2π ≈ 6.283185 — one whole turn of a circle, in radians.', 'Numbers');
+      if (n.name === 'egamma') return r(CONSTS.egamma, 'γ (the Euler–Mascheroni constant) ≈ 0.577216. It is how far 1 + 1/2 + 1/3 + … drifts away from ln(n).', 'Numbers');
       return r(ctx.ans ?? 0, `Ans means your last answer, which was ${fmt(ctx.ans ?? 0)}.`, 'Numbers');
     case 'fn': { const o = fnValue(n.name, V(n.a), ctx); return r(o.v, o.text, n.name === 'sqrt' || n.name === 'cbrt' ? 'Roots' : 'Functions'); }
     case 'neg': return r(-V(n.a), `The minus sign in front means "the opposite of": −(${F(n.a)}) = ${fmt(-V(n.a))}.`, 'Signs');
     case 'post':
+      if (n.op === '°') return ctx.deg !== false
+        ? r(V(n.a), `° means degrees. The calculator is already in degree mode (D), so ${F(n.a)}° stays ${F(n.a)}.`, 'Angles')
+        : r(V(n.a) * Math.PI / 180, `° means degrees. In radian mode, change it to radians: ${F(n.a)} × π ÷ 180 ≈ ${fmt(V(n.a) * Math.PI / 180)}.`, 'Angles');
       if (n.op === '%') return r(V(n.a) / 100, `Percent means "out of 100", so ${F(n.a)}% = ${F(n.a)} ÷ 100 = ${fmt(V(n.a) / 100)}.`, 'Percent');
       if (n.op === '!!') {
         const k = dfact(V(n.a)), list = [];
@@ -338,7 +352,7 @@ function reduceNode(n, ctx) {
           return r(a * b, t, 'Multiply & divide (left to right)', { op: '*', a, b });
         }
         case '/': {
-          if (b === 0) throw new MathError(`You can't divide by zero. There is no number that times 0 gives ${A}.`);
+          if (b === 0) throw new MathError(`You can't divide by zero. There is no number that times 0 gives ${A}. (Some people say "∞", but it's really undefined — try 1 ÷ 0.001 and 1 ÷ −0.001: one is huge and positive, the other huge and negative.)`);
           const q = a / b;
           let t = `Divide: ${A} ÷ ${Bp} = ${fmt(q)}.`;
           if (isInt(a) && isInt(b) && !isInt(q) && a > 0 && b > 0) t += ` (${A} ÷ ${B} is ${Math.floor(a / b)} remainder ${a % b}${toFrac(q) ? `, or as a fraction ${fracText(a / gcd(a, b), b / gcd(a, b))}` : ''}.)`;
@@ -365,6 +379,15 @@ function reduceNode(n, ctx) {
       }
     }
   }
+}
+function infNote(op, a, b) {
+  const ia = !isFinite(a), ib = !isFinite(b);
+  if (op === '/' && ib && !ia) return ' A number split into endless pieces makes each piece so tiny it is 0.';
+  if (op === '/' && ia) return ' ∞ split into a normal number of pieces is still endless.';
+  if (op === '+' || op === '-') return ' Adding or taking away a normal number can’t change something endless.';
+  if (op === '*') return ' Endless groups of something is still endless (the sign follows the usual rules).';
+  if (op === '^') return ' Powers with ∞ either blow up to ∞ or shrink to 0.';
+  return '';
 }
 const fracText = (a, b) => `${fmt(a)}/${fmt(b)}`;
 const RANK = { const: 6, fn: 5, post: 5, neg: 4 };
@@ -405,6 +428,8 @@ export function stepsFor(tree, ctx) {
     const inParens = scope.paren || (scope !== root.b && scope.scope);
     const before = show(root.b, { html: true, hl: best, frac: false });
     const res = reduceNode(best, ctx);
+    if (Number.isNaN(res.v)) throw new MathError(`${show(best).replace(/Infinity/g, '∞')} has no answer. Mixing ∞ like that (∞ − ∞, ∞ ÷ ∞, 0 × ∞) is called "indeterminate" — it could be anything, so it's undefined.`);
+    if (best.t === 'bin' && (!isFinite(best.a.v) || !isFinite(best.b.v))) res.text += infNote(best.op, best.a.v, best.b.v);
     const wasParen = best.paren;
     for (const k of Object.keys(best)) if (k !== 'root') delete best[k];
     Object.assign(best, { t: 'num', v: res.v });
@@ -658,8 +683,10 @@ export function wordsToMath(s) {
 export function solve(src, ctx = {}) {
   let text = String(src).trim();
   if (!text) throw new MathError('Type a problem first.');
-  if (/[a-wyz]{3,}/i.test(text.replace(/sin|cos|tan|sqrt|cbrt|log|ln|abs|pi|ans|mod|of/gi, ''))) text = wordsToMath(text);
+  if (/[a-wyz]{3,}/i.test(text.replace(/sin|cos|tan|sqrt|cbrt|log|ln|abs|pi|ans|mod|infinity|inf|omega|phi|tau|theta|of/gi, ''))) text = wordsToMath(text);
   if (!text) throw new MathError('Type a problem first.');
+  if (text.includes('±')) return plusMinus(text, ctx);
+  if (text.includes('≠')) return notEqual(text, ctx);
   if (/(^|[^a-z])y([^a-z]|$)/i.test(text.replace(/\b(yes|why)\b/gi, ''))) throw new MathError('That has a y in it — open 📈 Graph to draw it, or use just x here.');
   const stats = statsOf(text); if (stats) return stats;
   if (/[<>≤≥]/.test(text)) return solveInequality(text, ctx);
@@ -814,4 +841,29 @@ function statsOf(text) {
   const answer = want === 'mean' ? `mean = ${fmt(mean)}` : want === 'median' ? `median = ${fmt(mid)}` : want === 'mode' ? `mode = ${modes.length ? modes.map(fmt).join(', ') : 'none'}` : want === 'range' ? `range = ${fmt(range)}` : `mean ${fmt(mean)}, median ${fmt(mid)}, mode ${modes.length ? modes.map(fmt).join(', ') : 'none'}, range ${fmt(range)}`;
   const value = want === 'median' ? mid : want === 'range' ? range : want === 'mode' ? (modes[0] ?? NaN) : mean;
   return { kind: 'stats', value, answer, lcd: fmt(value), steps, start: `${m[1] ? m[1].toLowerCase() + ' of ' : ''}${nums.map(fmt).join(', ')}`, title: 'Statistics' };
+}
+
+// ---------- ± : do it twice ----------
+function plusMinus(text, ctx) {
+  const i = text.indexOf('±');
+  const a = text.slice(0, i) + '+' + text.slice(i + 1), b = text.slice(0, i) + '-' + text.slice(i + 1);
+  const ra = solve(a, ctx), rb = solve(b, ctx);
+  const val = r => r.value ?? r.roots?.[0];
+  const start = esc2(text);
+  const steps = [{ rule: '± means two answers', text: '± ("plus or minus") means do the problem twice: once with + and once with −.', before: start, after: `${esc2(a)}   and   ${esc2(b)}` },
+    ...ra.steps.map(s => ({ ...s, rule: 'With + : ' + s.rule })), ...rb.steps.map(s => ({ ...s, rule: 'With − : ' + s.rule }))];
+  const vs = [val(ra), val(rb)];
+  return { kind: 'pm', roots: vs, value: vs[0], answer: `${ra.answer.replace(/<[^>]+>/g, '').split('  ')[0]} or ${rb.answer.replace(/<[^>]+>/g, '').split('  ')[0]}`, lcd: fmt(vs[0]), steps, start, title: 'Plus or minus (±)' };
+}
+const esc2 = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+// ---------- ≠ ----------
+function notEqual(text, ctx) {
+  const eq = text.replace('≠', '=');
+  const r = solve(eq, ctx);
+  if (r.kind === 'check') {
+    const ok = !r.ok;
+    return { ...r, ok, answer: ok ? 'TRUE' : 'FALSE', lcd: ok ? 'trUE' : 'FALSE', start: esc2(text), title: 'Is it true?', steps: [...r.steps.slice(0, -1), { rule: 'Compare', text: `≠ means "is NOT equal to". The two sides are ${r.ok ? 'equal, so ≠ is FALSE' : 'different, so ≠ is TRUE'}.`, before: esc2(text) }] };
+  }
+  const roots = r.roots || [];
+  return { ...r, kind: 'eqn', start: esc2(text), title: 'Not equal (≠)', answer: roots.length ? `x ≠ ${roots.map(fmt).join(' and x ≠ ')}` : 'every x', steps: [{ rule: 'Solve it as if it were =', text: '≠ means "is NOT equal to". First find the x that WOULD make the sides equal…', before: esc2(eq) }, ...r.steps, { rule: 'Then flip it', text: roots.length ? `…x can be any number EXCEPT ${roots.map(fmt).join(' or ')}.` : 'No x makes them equal, so every x works.', before: roots.length ? `x ≠ ${roots.map(fmt).join(', ')}` : 'every x' }] };
 }

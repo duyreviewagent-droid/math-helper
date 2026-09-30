@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MATH-helper</title>
+<meta name="description" content="A realistic school calculator that shows you how to do every problem, step by step — plus practice with study music.">
+<meta name="theme-color" content="#2f4a3a">
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&family=Fredericka+the+Great&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="saved" class="saved">✓ SAVED</div>
+
+<header class="shelf">
+  <div class="logo" aria-label="MATH-helper">
+    <span class="logo-board">MATH<span class="dash">-</span>helper</span>
+    <span class="logo-sub">shows you how, step by step</span>
+  </div>
+  <nav class="tabs" role="tablist">
+    <button class="tab on" data-view="calc" role="tab">🧮 Calculator</button>
+    <button class="tab" data-view="practice" role="tab">🏫 Practice</button>
+  </nav>
+  <div class="radio" id="radio" title="Study radio">
+    <div class="grille"></div>
+    <div class="dial">
+      <div class="dial-top"><span class="onair" id="onair">●</span><span id="trackName">Lo-fi Study Hall</span></div>
+      <div class="eq" id="eq"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="rbtns">
+      <button id="rPrev" title="Previous song">⏮</button>
+      <button id="rPlay" class="big" title="Play / pause music">▶</button>
+      <button id="rNext" title="Next song">⏭</button>
+    </div>
+    <label class="knob" title="Music volume"><span>VOL</span><input id="rVol" type="range" min="0" max="1" step="0.01" value="0.6"></label>
+    <button id="sfxBtn" class="sfx" title="Sound effects on/off">🔔</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ CALCULATOR ============ -->
+  <section id="view-calc" class="view on">
+    <div class="deskleft">
+      <div class="calc" id="calc">
+        <div class="calc-top">
+          <div class="brand"><b>MATH-helper</b><i>fx-MH 100 · SCHOOL</i></div>
+          <div class="solar"><span></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="bezel">
+          <div class="lcd" id="lcd">
+            <div class="ind"><span id="indS">S</span><span id="indMode">D</span><span id="indFrac">a⌟b</span><span id="indX">x=</span><span class="batt">▮▮▮</span></div>
+            <div class="line1" id="line1"><div class="dots" id="inText"></div></div>
+            <div class="line2"><span class="xlab" id="xlab"></span><svg id="seg" class="seg"></svg></div>
+          </div>
+        </div>
+        <div class="fkeys" id="fkeys"></div>
+        <div class="nkeys" id="nkeys"></div>
+        <div class="calc-foot">NATURAL · STEP-BY-STEP</div>
+      </div>
+      <div class="sticky">
+        <div class="tape"></div>
+        <h4>Try one of these!</h4>
+        <div id="examples"></div>
+      </div>
+    </div>
+    <div class="notebook" id="calcNote">
+      <div class="rings"></div>
+      <div class="nb-tabs"><button class="nbt on" data-nb="steps">How to do it</button><button class="nbt" data-nb="hist">History</button></div>
+      <div class="page">
+        <div class="nb-steps" id="nbSteps"></div>
+        <div class="nb-hist" id="nbHist" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PRACTICE ============ -->
+  <section id="view-practice" class="view">
+    <div class="pbar">
+      <div class="topics" id="topics"></div>
+    </div>
+    <div class="classroom">
+      <div class="boardwrap">
+        <div class="board" id="board">
+          <div class="board-head">
+            <span id="bTopic">Addition</span>
+            <div class="levels" id="levels"></div>
+          </div>
+          <div class="problem" id="problem">—</div>
+          <form class="answer" id="ansForm" autocomplete="off">
+            <label for="ans">Answer:</label>
+            <input id="ans" inputmode="decimal" spellcheck="false" placeholder="type here">
+            <button type="submit" class="chalkbtn primary">Check ✓</button>
+          </form>
+          <div class="feedback" id="feedback"></div>
+          <div class="bbtns">
+            <button class="chalkbtn" id="hintBtn">💡 Hint</button>
+            <button class="chalkbtn" id="showBtn">📖 Show me how</button>
+            <button class="chalkbtn" id="nextBtn">Next ▶</button>
+          </div>
+          <div class="tray"><i class="chalk w"></i><i class="chalk y"></i><i class="chalk p"></i><i class="eraser"></i></div>
+        </div>
+        <div class="scores">
+          <div class="score"><b id="sStars">0</b><span>⭐ stars</span></div>
+          <div class="score"><b id="sStreak">0</b><span>🔥 streak</span></div>
+          <div class="score"><b id="sBest">0</b><span>🏆 best</span></div>
+          <div class="score"><b id="sRight">0</b><span>✅ right</span></div>
+          <button class="report-btn" id="reportBtn">📋 Report card</button>
+        </div>
+      </div>
+      <div class="notebook" id="pNote">
+        <div class="rings"></div>
+        <div class="nb-tabs"><button class="nbt on">How to do it</button></div>
+        <div class="page"><div class="nb-steps" id="pSteps"></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="modal" id="report" hidden>
+  <div class="card">
+    <button class="x" id="reportClose">✕</button>
+    <h2>Report Card</h2>
+    <p class="rc-sub">MATH-helper Academy · practice record</p>
+    <table id="rcTable"></table>
+    <div class="rc-foot"><span>Teacher's note:</span> <em id="rcNote"></em></div>
+    <button class="chalkbtn danger" id="resetBtn">Start over (clear scores)</button>
+  </div>
+</div>
+<div id="confetti"></div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

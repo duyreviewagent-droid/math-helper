@@ -464,6 +464,9 @@ function show(view) {
 }
 $$('.tab').forEach(t => t.onclick = () => { sfx.click(); startMusicIfWanted(); if (t.dataset.view === 'practice' && !$('#view-practice').classList.contains('on')) sfx.bell(); show(t.dataset.view); });
 window.MH = { show: v => show(v) };
+// no text selection anywhere (except typing boxes): stop double-click / drag highlighting and the right-click "select" menu
+addEventListener('selectstart', e => { if (!e.target.closest?.('input, textarea, select')) e.preventDefault(); });
+addEventListener('dragstart', e => e.preventDefault());
 
 // ---------- Draw mode ----------
 const drawCtl = initDraw({

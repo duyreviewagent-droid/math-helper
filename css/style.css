@@ -366,7 +366,10 @@ details.method[open] summary { color: #7a86a0; }
 }
 
 /* ---------- text you can select and copy ---------- */
-.page, .page *, .board .problem, .feedback, .readback b { -webkit-user-select: text; user-select: text; }
+/* nothing gets highlighted when you click or drag — only the typing boxes can be selected */
+*, *::before, *::after { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select { -webkit-user-select: text; user-select: text; }
+img, svg, canvas { -webkit-user-drag: none; }
 .copy { vertical-align: middle; border: 1px solid #c9d4e4; background: #fff; border-radius: 14px; font-family: var(--hand); font-size: 15px; padding: 1px 10px; color: #2f62b0; margin-left: 6px; }
 .copy:hover { background: #eef4ff; }
 

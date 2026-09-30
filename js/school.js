@@ -10,18 +10,18 @@ const par = v => v < 0 ? `(${fmt(v)})` : String(v);
 const coef = (k) => k === 1 ? '' : k === -1 ? '−' : String(k).replace('-', '−');
 
 export const TOPICS = [
-  { id: 'add', name: 'Addition', icon: '➕', grade: 'Grades 1–5' },
-  { id: 'sub', name: 'Subtraction', icon: '➖', grade: 'Grades 1–5' },
-  { id: 'mul', name: 'Multiplication', icon: '✖️', grade: 'Grades 3–6' },
-  { id: 'div', name: 'Division', icon: '➗', grade: 'Grades 3–6' },
-  { id: 'neg', name: 'Negative numbers', icon: '🌡️', grade: 'Grades 6–7' },
-  { id: 'order', name: 'Order of operations', icon: '🧩', grade: 'Grades 5–8' },
-  { id: 'frac', name: 'Fractions', icon: '🍕', grade: 'Grades 4–7' },
-  { id: 'dec', name: 'Decimals', icon: '🔢', grade: 'Grades 4–7' },
-  { id: 'pct', name: 'Percents', icon: '💯', grade: 'Grades 6–8' },
-  { id: 'pow', name: 'Exponents & roots', icon: '🔺', grade: 'Grades 6–9' },
-  { id: 'eq', name: 'Equations', icon: '⚖️', grade: 'Grades 6–9' },
-  { id: 'quad', name: 'Quadratics', icon: '📈', grade: 'Grades 9–11' },
+  { id: 'add', name: 'Addition', icon: '➕', grade: 'Grades 1–5', lo: 0, hi: 4 },
+  { id: 'sub', name: 'Subtraction', icon: '➖', grade: 'Grades 1–5', lo: 0, hi: 4 },
+  { id: 'mul', name: 'Multiplication', icon: '✖️', grade: 'Grades 3–6', lo: 2, hi: 5 },
+  { id: 'div', name: 'Division', icon: '➗', grade: 'Grades 3–6', lo: 3, hi: 6 },
+  { id: 'neg', name: 'Negative numbers', icon: '🌡️', grade: 'Grades 6–7', lo: 6, hi: 7 },
+  { id: 'order', name: 'Order of operations', icon: '🧩', grade: 'Grades 5–8', lo: 5, hi: 8 },
+  { id: 'frac', name: 'Fractions', icon: '🍕', grade: 'Grades 4–7', lo: 3, hi: 7 },
+  { id: 'dec', name: 'Decimals', icon: '🔢', grade: 'Grades 4–7', lo: 4, hi: 7 },
+  { id: 'pct', name: 'Percents', icon: '💯', grade: 'Grades 6–8', lo: 6, hi: 8 },
+  { id: 'pow', name: 'Exponents & roots', icon: '🔺', grade: 'Grades 6–9', lo: 6, hi: 9 },
+  { id: 'eq', name: 'Equations', icon: '⚖️', grade: 'Grades 6–9', lo: 6, hi: 9 },
+  { id: 'quad', name: 'Quadratics', icon: '📈', grade: 'Grades 9–11', lo: 9, hi: 12 },
 ];
 
 // Every generator returns { q: what's shown, src: what the explainer works on, ans: number | [roots], kind }
@@ -83,4 +83,25 @@ export function makeProblem(topic, level) {
   return p;
 }
 export const LEVELS = ['Easy', 'Medium', 'Hard'];
+export const GRADES = ['K', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+export const gradeName = g => g === 0 ? 'Kindergarten' : `Grade ${g}`;
+/** Is this subject taught around this grade? */
+export const forGrade = (t, g) => g >= t.lo && g <= t.hi;
+/** Easy / Medium / Hard to start on for this grade. */
+export const levelFor = (t, g) => g <= t.lo ? 0 : g >= t.hi ? 2 : 1;
+export const GRADE_EXAMPLES = [
+  ['2 + 3', '5 − 1', '4 + 4', '10 − 3', '1 + 2 + 3', '6 + 0', '9 − 5', '3 + 3 + 3'],
+  ['8 + 5', '12 − 4', '9 + 9', '15 − 8', '20 + 30', '3 + 4 + 5', '18 − 9', '50 + 25'],
+  ['47 + 25', '63 − 28', '100 − 45', '3 × 4', '5 + 5 + 5', '99 + 1', '2 × 6', '84 − 37'],
+  ['6 × 7', '56 ÷ 8', '345 + 278', '702 − 356', '1/2 + 1/2', '4 × 25', '9 × 8', '81 ÷ 9'],
+  ['456 × 23', '7825 ÷ 25', '3/8 + 2/8', '1.5 + 2.75', '17 ÷ 5', '12 × 12', '1203 − 567', '36'],
+  ['1/2 + 1/3', '3/4 × 2/9', '2.4 × 1.5', '(8 − 3) × 4', '3 + 4 × 2', '10²', '7/4', '0.75'],
+  ['15% of 80', '5/6 ÷ 1/3', '2x = 18', '−3 + 7', '2³ + 4', '3.6 ÷ 0.4', '360', '5 − (−3)'],
+  ['2x + 5 = 17', '−4 × −5', '3(x − 2) = 12', '25% of 64', '−3² + 10', 'x + 7 = −2', '2x + 3 > 7', '97'],
+  ['3(x − 2) = 2x + 4', '√50', '5x − 3 = 2x + 9', '4.5 × 10^3', '√144 + 2³', '−3x + 4 ≤ 10', '2^10', '(2 + 3)²'],
+  ['x² − 5x + 6 = 0', 'x² = 16', '(2x + 1)(x − 3) = 0', '2x² + 3x − 7 = 0', 'x² − 5x + 6 < 0', '√(3² + 4²)', 'x² + 1 = 0', '6!'],
+  ['sin(30) + cos(60)', 'tan(45)', 'x² ≥ 4', 'sin⁻¹(0.5)', '2x² − 8 = 0', '√(5² + 12²)', 'cos(180)', '3^4'],
+  ['log(1000)', 'ln(e^2)', '2^x = 8', '6!', '5!/(2!×3!)', 'log(2) + log(5)', 'e^2', '17 mod 5'],
+  ['x³ − 6x² + 11x − 6 = 0', '6!!', 'e^2', '10!/7!', '2.5!', 'ln(10)', '2^x = 100', 'sin(x) = 0.5'],
+];
 export const tidyFrac = (n, d) => { const g = gcd(n, d); return [n / g, d / g]; };

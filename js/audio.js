@@ -202,3 +202,19 @@ class Radio {
   }
 }
 export const radio = new Radio();
+
+// Pencil on paper while drawing: a looping, filtered hiss whose loudness follows how fast the pen moves.
+export const pencilLoop = {
+  g: null,
+  start() {
+    if (!go()) return;
+    if (this.g) return;
+    const s = ctx.createBufferSource(); s.buffer = noiseBuf; s.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 4200; f.Q.value = 0.6;
+    const h = ctx.createBiquadFilter(); h.type = 'highpass'; h.frequency.value = 1500;
+    this.g = ctx.createGain(); this.g.gain.value = 0;
+    s.connect(f); f.connect(h); h.connect(this.g); this.g.connect(sfxBus); s.start();
+  },
+  speed(v) { if (this.g && sfxOn) this.g.gain.setTargetAtTime(Math.min(0.22, v * 0.0045), ctx.currentTime, 0.015); },
+  stop() { if (this.g) this.g.gain.setTargetAtTime(0, ctx.currentTime, 0.04); },
+};

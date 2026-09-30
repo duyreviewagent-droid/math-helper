@@ -621,3 +621,85 @@ body.fitted .gside .notebook { flex: 1 1 0; }
 .pbar { padding: 4px 4px 14px; }
 .logo-board, .helpbtn { white-space: nowrap; }
 @media (max-width: 1400px) { .logo-board { font-size: 22px; } .tab { padding: 9px 11px 7px; font-size: 14px; } }
+
+/* ---------- nothing cut off ---------- */
+/* long steps wrap onto the next line instead of running off the paper */
+.mathline { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.mathline .frac { white-space: nowrap; }
+.probline, .answerbox, .oops li, .why { overflow-wrap: anywhere; }
+/* sticky note and grade card sit straight so their edges aren't clipped */
+body.fitted .sidecol .sticky, body.fitted .sidecol .gradecard { transform: none; }
+body.fitted .sidecol { overflow-x: visible; padding-right: 6px; }
+.grades { gap: 4px; }
+.gbtn { min-width: 0; font-size: 15px; }
+/* header: when the window is narrow, the radio moves to its own row instead of sliding off the edge */
+@media (max-width: 1300px) { .dial { width: 110px; } .tab { padding: 9px 9px 7px; } }
+@media (max-width: 1180px) {
+  .shelf { flex-wrap: wrap; row-gap: 8px; }
+  .radio { order: 5; margin-left: auto; }
+}
+body.fitted .shelf { flex-shrink: 0; }
+/* phones: tabs wrap onto two rows */
+@media (max-width: 700px) {
+  .tabs { flex-wrap: wrap; gap: 5px; width: 100%; }
+  .tab { flex: 1 1 auto; padding: 8px 8px 6px; font-size: 13px; text-align: center; }
+  .helpbtn { order: 3; }
+  .radio { order: 6; }
+}
+.drawstatus { bottom: 18px; }
+.drawstatus:not(.on) { visibility: hidden; }
+
+/* ---------- show your work ---------- */
+.sywBtn { margin: 2px 0 10px; border: 0; font-family: var(--hand); font-size: 19px; padding: 4px 16px; border-radius: 18px; color: #fff; background: linear-gradient(#5d9ee8, #2f73c9); box-shadow: 0 3px 0 #173e70, 0 5px 8px rgba(0,0,0,.2); }
+.sywBtn:hover { filter: brightness(1.08); }
+.sywBtn:active { transform: translateY(2px); box-shadow: 0 1px 0 #173e70; }
+.work { position: fixed; inset: 0; z-index: 96; background: rgba(40, 24, 10, .78); backdrop-filter: blur(3px); display: flex; justify-content: center; padding: 18px; }
+.work[hidden] { display: none; }
+.worksheet { width: min(1100px, 100%); height: 100%; overflow-y: auto; position: relative; border-radius: 4px; padding: 20px 34px 40px 96px; font-family: var(--hand); color: var(--ink);
+  background-color: var(--paper);
+  background-image: linear-gradient(90deg, transparent 70px, var(--margin) 70px, var(--margin) 72px, transparent 72px), repeating-linear-gradient(180deg, transparent 0 43px, var(--blue-line) 43px 44px);
+  box-shadow: 0 30px 60px rgba(0,0,0,.5); }
+.wtop { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; position: sticky; top: -20px; background: var(--paper); padding: 8px 0; z-index: 2; margin-top: -8px; }
+.wtop h2 { margin: 0; font-family: var(--chalkhead); font-weight: 400; font-size: 34px; color: #2f62b0; }
+.wbtns { display: flex; gap: 8px; flex-wrap: wrap; }
+.wname { display: flex; justify-content: space-between; font-size: 20px; color: #6a7690; margin: 4px 0 6px; }
+.wname u { display: inline-block; width: 220px; border-bottom: 2px solid #9aa6ba; text-decoration: none; }
+.wproblem { font-size: 26px; color: #c0392b; line-height: 44px; }
+.wlines { list-style: none; margin: 0; padding: 0; }
+.wl { display: grid; grid-template-columns: 44px minmax(0, auto) minmax(180px, 1fr); column-gap: 18px; align-items: baseline; padding: 6px 0; opacity: 0; transform: translateY(6px); transition: opacity .35s, transform .35s; }
+.wl.show { opacity: 1; transform: none; }
+.wl.show .wmath { animation: writeline .7s ease-out; }
+@keyframes writeline { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+.wn { margin-left: -64px; width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--red); color: var(--red); font-size: 20px; display: flex; align-items: center; justify-content: center; transform: rotate(-6deg); align-self: center; }
+.wmath { font-size: 36px; line-height: 50px; color: #1a2440; overflow-wrap: anywhere; }
+.wmath sup { font-size: .6em; }
+.weq { color: #2f62b0; margin-right: 12px; }
+.wnote { font-size: 19px; line-height: 26px; color: #2a7a4a; align-self: center; }
+.wl.info .wmath { font-size: 28px; line-height: 40px; color: #394866; }
+.wmethod { grid-column: 2 / 4; margin: 4px 0 6px; }
+.wmethod .paper { transform-origin: left top; }
+.wans .wmath { font-size: 40px; margin-top: 8px; }
+.wbox { display: inline-block; border: 3px solid var(--red); border-radius: 12px 18px 10px 16px; padding: 2px 18px; color: #c0392b; transform: rotate(-.6deg); box-shadow: 4px 4px 0 rgba(210, 69, 60, .15); }
+.wbox .frac { font-size: .8em; }
+.wnext { position: sticky; bottom: -40px; display: flex; gap: 14px; align-items: center; justify-content: center; padding: 14px 0 4px; background: linear-gradient(transparent, var(--paper) 30%); }
+.wnext[hidden] { display: none; }
+.wnext .tool { font-size: 20px; padding: 10px 26px; }
+.wnext span { font-size: 18px; color: #6a7690; }
+@media (max-width: 700px) {
+  .work { padding: 6px; }
+  .worksheet { padding: 12px 12px 30px 62px; background-image: linear-gradient(90deg, transparent 46px, var(--margin) 46px, var(--margin) 48px, transparent 48px), repeating-linear-gradient(180deg, transparent 0 43px, var(--blue-line) 43px 44px); }
+  .wl { grid-template-columns: 0 1fr; }
+  .wn { margin-left: -50px; width: 30px; height: 30px; font-size: 16px; }
+  .wmath { font-size: 27px; line-height: 40px; }
+  .wnote { grid-column: 2; font-size: 16px; }
+  .wtop h2 { font-size: 26px; }
+}
+@media print {
+  body > *:not(#work) { display: none !important; }
+  body { background: #fff !important; height: auto !important; overflow: visible !important; display: block !important; }
+  .work { position: static; background: none; padding: 0; backdrop-filter: none; display: block; }
+  .worksheet { height: auto; overflow: visible; box-shadow: none; width: 100%; }
+  .wbtns, .wnext { display: none !important; }
+  .wl { opacity: 1 !important; transform: none !important; break-inside: avoid; }
+  .wl .wmath { animation: none !important; }
+}

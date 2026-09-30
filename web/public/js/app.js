@@ -188,7 +188,7 @@ function answerHTML(r) {
 function renderExplain(el, r, { sound = true, heading = r.title } = {}) {
   let h = `<h3 class="nb-title">${heading}<small>${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small></h3>`;
   h += `<div class="probline">Problem: <span class="m">${r.start}</span></div>`;
-  if (!r.noAnswer) h += `<div class="answerbox"><span>${r.answerLabel || 'Answer'}: <b class="m">${answerHTML(r)}</b></span></div> <button class="copy" title="Copy the answer">📋 Copy</button>`;
+  if (!r.noAnswer) h += `<div class="answerbox"><span>${r.answerLabel || 'Answer'}: <b class="m">${answerHTML(r)}</b></span></div> <button class="copy" title="Copy the answer">📋 Copy</button><br><button class="sywBtn" title="See the work written out clearly, line by line">✍️ Show your work</button>`;
   h += '<ol class="steps">';
   r.steps.forEach((s, i) => {
     const wm = writtenMethod(s.method);
@@ -203,6 +203,7 @@ function renderExplain(el, r, { sound = true, heading = r.title } = {}) {
   const oops = r.src ? mistakes(r.src, r) : [];
   if (oops.length) h += `<div class="oops" style="--d:${(0.3 + r.steps.length * 0.28).toFixed(2)}s"><h4>⚠️ How people get it wrong</h4><ul>${oops.map(o => `<li><s class="m">${esc(o.wrong)}</s> <span>✘</span> ${esc(o.why)}</li>`).join('')}</ul></div>`;
   el.innerHTML = h;
+  if (el.querySelector('.sywBtn')) el.querySelector('.sywBtn').onclick = () => showWork(r);
   if (el.querySelector('.copy')) el.querySelector('.copy').onclick = e => { navigator.clipboard?.writeText(r.answer.replace(/<[^>]+>/g, '')).then(() => { e.target.textContent = '✓ Copied'; setTimeout(() => e.target.textContent = '📋 Copy', 1500); }).catch(() => {}); sfx.click(); };
   el.querySelectorAll('details.method').forEach(d => d.addEventListener('toggle', () => { fitPaper(el); updateZoom(); }));
   fitPaper(el); setTimeout(updateZoom, 50);
@@ -584,7 +585,7 @@ function fit() {
   bw.style.zoom = '';
   if (desk && $('#view-practice').classList.contains('on')) {
     const avail = $('.classroom').clientHeight - 6, need = bw.offsetHeight + 4;
-    if (need > avail) bw.style.zoom = Math.max(0.6, avail / need).toFixed(3);
+    if (need > avail) bw.style.zoom = Math.max(0.4, avail / need).toFixed(3);
   }
 }
 function updateZoom() {
@@ -603,6 +604,74 @@ $$('.zoomBtn').forEach(b => b.onclick = () => {
 });
 addEventListener('keydown', e => { if (e.key === 'Escape') { const z = $('.notebook.zoomed'); if (z) { z.querySelector('.zoomBtn').click(); e.stopImmediatePropagation(); } } }, true);
 addEventListener('resize', () => { fit(); refitAll(); });
+
+// ---------- show your work ----------
+// The work written out the way you'd hand it in: one line per step, a short note beside each, the answer boxed.
+const W = { lines: [], shown: 0, manual: false, timer: null, r: null };
+const plainOf = h => String(h || '').replace(/<sup>/g, '^').replace(/<[^>]+>/g, '').replace(/\s+/g, '');
+function shortNote(s) {
+  const first = String(s.text || '').split(/(?<=[.!?])\s+/)[0];
+  return first && first.length <= 90 ? first : s.rule;
+}
+function workLines(r) {
+  const lines = [], chain = r.kind === 'expr' || r.kind === 'frac';
+  const push = (html, note, extra = {}) => {
+    if (!html) return;
+    const last = lines[lines.length - 1];
+    if (last && plainOf(last.html) === plainOf(html)) { if (note && !last.note) last.note = note; if (extra.method && !last.method) last.method = extra.method; return; }
+    lines.push({ html, note, ...extra });
+  };
+  if (r.start) push(r.start, 'Write down the problem.', { first: true });
+  for (const st of r.steps) {
+    const wm = writtenMethod(st.method);
+    if (st.after) {
+      if (st.before && lines.length && plainOf(st.before) !== plainOf(lines[lines.length - 1].html)) push(st.before, st.rule);
+      push(st.after, shortNote(st), { method: wm });
+    } else push(st.before, shortNote(st), { method: wm, info: !chain });
+  }
+  lines.forEach((l, i) => { l.eq = chain && i > 0 && !/[=<>≤≥]/.test(plainOf(l.html)); });
+  return lines;
+}
+function showWork(r) {
+  W.r = r; W.lines = workLines(r);
+  $('#wDate').textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  $('#wProblem').innerHTML = `<b>${esc(r.title || 'Problem')}</b>`;
+  $('#wLines').innerHTML = W.lines.map((l, i) => `<li class="wl${l.info ? ' info' : ''}"><span class="wn">${i + 1}</span><div class="wmath m">${l.eq ? '<span class="weq">=</span>' : ''}${l.html}</div><div class="wnote">${l.note ? '← ' + esc(l.note) : ''}</div>${l.method ? `<div class="wmethod"><div class="paper">${l.method.html}</div></div>` : ''}</li>`).join('')
+    + (r.noAnswer ? '' : `<li class="wl wans"><span class="wn">✓</span><div class="wmath m"><span class="wbox">${r.answerLabel || 'Answer'}: ${answerHTML(r)}</span></div></li>`);
+  $('#work').hidden = false; document.body.classList.add('paperzoom');
+  sfx.page(); playWork();
+}
+function revealWork(n) {
+  const items = $$('#wLines .wl');
+  items.forEach((li, i) => li.classList.toggle('show', i < n));
+  W.shown = n;
+  const last = items[n - 1]; if (last) last.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  $('#wCount').textContent = `${Math.min(n, items.length)} of ${items.length}`;
+  $('#wNext').disabled = n >= items.length;
+  $('#wNext').textContent = n >= items.length ? 'All done ✓' : 'Next step ▶';
+}
+function playWork() {
+  clearInterval(W.timer);
+  revealWork(W.manual ? 1 : 0);
+  $('#wNextWrap').hidden = !W.manual;
+  $('#wStep').textContent = W.manual ? '▶ Write it all' : '👣 One step at a time';
+  if (W.manual) { sfx.pencil(0.5); return; }
+  let n = 0; const total = $$('#wLines .wl').length;
+  W.timer = setInterval(() => { n++; revealWork(n); sfx.pencil(0.45); if (n >= total) clearInterval(W.timer); }, 850);
+}
+function closeWork() { clearInterval(W.timer); $('#work').hidden = true; if (!$('.notebook.zoomed')) document.body.classList.remove('paperzoom'); sfx.click(); }
+$('#wNext').onclick = () => { if (W.shown < $$('#wLines .wl').length) { revealWork(W.shown + 1); sfx.pencil(0.45); } };
+$('#wStep').onclick = () => { W.manual = !W.manual; sfx.click(); playWork(); };
+$('#wReplay').onclick = () => { sfx.page(); playWork(); };
+$('#wPrint').onclick = () => { clearInterval(W.timer); revealWork($$('#wLines .wl').length); setTimeout(() => print(), 100); };
+$('#wClose').onclick = closeWork;
+$('#work').onclick = e => { if (e.target.id === 'work') closeWork(); };
+addEventListener('keydown', e => {
+  if ($('#work').hidden) return;
+  if (e.key === 'Escape') { closeWork(); e.stopImmediatePropagation(); e.preventDefault(); }
+  else if ((e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') && W.manual) { $('#wNext').click(); e.stopImmediatePropagation(); e.preventDefault(); }
+  else e.stopImmediatePropagation();
+}, true);
 
 // ---------- help ----------
 $('#helpBtn').onclick = () => { sfx.page(); $('#help').hidden = false; };
@@ -656,4 +725,4 @@ if (params.get('level')) S.school.level = +params.get('level');
 show(params.get('view') || 'calc');
 if (params.get('q')) runExample(params.get('q'));
 startMusicIfWanted(); setTimeout(unlockAudio, 400);
-window.__mh = { S, C, P, press, runExample, solve, newProblem, check, keyByAction, drawCtl, fit, updateZoom, gctl, renderGList, geoForm };
+window.__mh = { showWork, S, C, P, press, runExample, solve, newProblem, check, keyByAction, drawCtl, fit, updateZoom, gctl, renderGList, geoForm };

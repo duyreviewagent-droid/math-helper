@@ -1,0 +1,11 @@
+# MATH-helper on Render: a free static site (never sleeps). The whole app is web/public.
+services:
+  - type: web
+    name: math-helper
+    runtime: static
+    buildCommand: echo "nothing to build"
+    staticPublishPath: web/public
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache

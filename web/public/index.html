@@ -22,8 +22,17 @@
   </div>
   <nav class="tabs" role="tablist">
     <button class="tab on" data-view="calc" role="tab">🧮 Calculator</button>
+    <button class="tab" data-view="draw" role="tab">✍️ Draw</button>
+    <button class="tab" data-view="graph" role="tab">📈 Graph</button>
+    <button class="tab" data-view="geo" role="tab">📐 Geometry</button>
     <button class="tab" data-view="practice" role="tab">🏫 Practice</button>
   </nav>
+  <div class="shelfdeco" aria-hidden="true">
+    <div class="crayonbox"><i class="cr" style="--c:#e0413a"></i><i class="cr" style="--c:#2f7fe0"></i><i class="cr" style="--c:#f4c21f"></i><i class="cr" style="--c:#3aa655"></i><i class="cr" style="--c:#8a4fd0"></i><b>CRAYONS</b></div>
+    <div class="apple"><i class="leaf"></i></div>
+    <div class="books"><i style="--c:#c0392b;--h:52px">MATH</i><i style="--c:#2f62b0;--h:46px">SCIENCE</i><i style="--c:#3d9a4f;--h:50px">READING</i></div>
+  </div>
+  <button class="helpbtn" id="helpBtn" title="How to use MATH-helper">❓ Help</button>
   <div class="radio" id="radio" title="Study radio">
     <div class="grille"></div>
     <div class="dial">
@@ -60,19 +69,94 @@
         <div class="nkeys" id="nkeys"></div>
         <div class="calc-foot">NATURAL · STEP-BY-STEP</div>
       </div>
-      <div class="sticky">
-        <div class="tape"></div>
-        <h4>Try one of these!</h4>
-        <div id="examples"></div>
+      <div class="sidecol">
+        <div class="sticky">
+          <div class="tape"></div>
+          <h4>Try one of these! <small id="exGrade"></small></h4>
+          <div id="examples"></div>
+        </div>
+        <div class="gradecard">
+          <h4>🎒 My grade</h4>
+          <div class="grades" id="grades"></div>
+          <p id="gradeNote">Pick your grade and I'll focus on your kind of math.</p>
+        </div>
       </div>
     </div>
-    <div class="notebook" id="calcNote">
+<div class="notebook" id="calcNote">
       <div class="rings"></div>
-      <div class="nb-tabs"><button class="nbt on" data-nb="steps">How to do it</button><button class="nbt" data-nb="hist">History</button></div>
+      <div class="nb-tabs"><button class="nbt on" data-nb="steps">How to do it</button><button class="nbt" data-nb="try">Try these</button><button class="nbt" data-nb="hist">History</button><button class="zoomBtn" title="Make the paper fill the whole screen">⛶ Full page</button></div>
       <div class="page">
         <div class="nb-steps" id="nbSteps"></div>
+        <div class="nb-try" id="nbTry" hidden></div>
         <div class="nb-hist" id="nbHist" hidden></div>
       </div>
+    </div>
+  </section>
+
+  <!-- ============ DRAW ============ -->
+  <section id="view-draw" class="view">
+    <div class="drawwrap">
+      <div class="drawtools">
+        <button id="dPen" class="tool on">✏️ Pencil</button>
+        <button id="dErase" class="tool">🧽 Eraser</button>
+        <button id="dUndo" class="tool">↶ Undo</button>
+        <button id="dClear" class="tool">🗑 Clear</button>
+        <div class="timer" id="dTimer" title="I answer when you stop drawing for 10 seconds">
+          <svg viewBox="0 0 36 36"><circle class="bg" cx="18" cy="18" r="15"/><circle class="fg" id="dRing" cx="18" cy="18" r="15"/></svg>
+          <span id="dSecs">10</span>
+        </div>
+        <button id="dNow" class="tool go">⚡ Answer now</button>
+      </div>
+      <div class="drawpaper" id="drawPaper">
+        <canvas id="drawCv"></canvas>
+        <div class="drawhint" id="drawHint">✍️ Write a math problem here<br><small>with your mouse, finger or pen — then stop for 10 seconds and I'll answer it</small></div>
+        <div class="drawstatus" id="dStatus"></div>
+      </div>
+      <div class="readback"><span>I read:</span> <b id="dRead" class="m">—</b> <button id="dToCalc" class="tool small">🧮 Fix it on the calculator</button></div>
+    </div>
+    <div class="notebook" id="drawNote">
+      <div class="rings"></div>
+      <div class="nb-tabs"><button class="nbt on">How to do it</button><button class="zoomBtn" title="Make the paper fill the whole screen">⛶ Full page</button></div>
+      <div class="page"><div class="nb-steps" id="dSteps"></div></div>
+    </div>
+  </section>
+
+  <!-- ============ GRAPH ============ -->
+  <section id="view-graph" class="view">
+    <div class="gside">
+      <div class="exprs">
+        <div class="exprs-head">📈 My graphs <small>type an equation — it draws itself</small></div>
+        <div id="gList"></div>
+        <button id="gAdd" class="tool small">＋ Add another</button>
+        <div class="gex" id="gEx"></div>
+      </div>
+      <div class="notebook" id="graphNote">
+      <div class="rings"></div>
+      <div class="nb-tabs"><button class="nbt on">How it works</button><button class="zoomBtn" title="Make the paper fill the whole screen">⛶ Full page</button></div>
+      <div class="page"><div class="nb-steps" id="gSteps"></div></div>
+    </div>
+    </div>
+    <div class="graphbox" id="graphBox">
+      <canvas id="graphCv"></canvas>
+      <div class="gzoom"><button id="gZoomIn" title="Zoom in">＋</button><button id="gZoomOut" title="Zoom out">−</button><button id="gHome" title="Back to the middle">⌂</button></div>
+      <div class="ghint">drag to move · scroll or pinch to zoom · tap a grey dot to see it</div>
+    </div>
+  </section>
+
+  <!-- ============ GEOMETRY ============ -->
+  <section id="view-geo" class="view">
+    <div class="shapes" id="shapes"></div>
+    <div class="geopaper">
+      <div class="geohead"><h3 id="geoName">Rectangle</h3><label class="units">units <select id="geoUnit"><option>cm</option><option>m</option><option>mm</option><option>in</option><option>ft</option><option>yd</option><option>units</option></select></label></div>
+      <p class="geonote" id="geoNote"></p>
+      <div class="geofields" id="geoFields"></div>
+      <div class="geodraw" id="geoDraw"></div>
+      <div class="geoans" id="geoAns"></div>
+    </div>
+    <div class="notebook" id="geoNoteBook">
+      <div class="rings"></div>
+      <div class="nb-tabs"><button class="nbt on">How it works</button><button class="zoomBtn" title="Make the paper fill the whole screen">⛶ Full page</button></div>
+      <div class="page"><div class="nb-steps" id="geoSteps"></div></div>
     </div>
   </section>
 
@@ -110,11 +194,11 @@
           <button class="report-btn" id="reportBtn">📋 Report card</button>
         </div>
       </div>
-      <div class="notebook" id="pNote">
-        <div class="rings"></div>
-        <div class="nb-tabs"><button class="nbt on">How to do it</button></div>
-        <div class="page"><div class="nb-steps" id="pSteps"></div></div>
-      </div>
+<div class="notebook" id="pNote">
+      <div class="rings"></div>
+      <div class="nb-tabs"><button class="nbt on">How to do it</button><button class="zoomBtn" title="Make the paper fill the whole screen">⛶ Full page</button></div>
+      <div class="page"><div class="nb-steps" id="pSteps"></div></div>
+    </div>
     </div>
   </section>
 </main>
@@ -130,6 +214,69 @@
   </div>
 </div>
 <div id="confetti"></div>
+
+<div class="deco" aria-hidden="true">
+  <div class="ruler" id="ruler"></div>
+  <div class="pencil big"><i class="rub"></i><i class="band"></i><i class="wood"></i></div>
+  <div class="crayon c1" style="--c:#e0413a"><b>RED</b></div>
+  <div class="crayon c2" style="--c:#2f7fe0"><b>BLUE</b></div>
+  <div class="crayon c3" style="--c:#f4c21f"><b>YELLOW</b></div>
+  <div class="eraser2">ERASER</div>
+  <svg class="clip" viewBox="0 0 40 100"><path d="M28 30 V78 a10 10 0 0 1 -20 0 V20 a6 6 0 0 1 12 0 V72" fill="none" stroke="#b9c0c8" stroke-width="3.2" stroke-linecap="round"/><path d="M28 30 V78 a10 10 0 0 1 -20 0 V20 a6 6 0 0 1 12 0 V72" fill="none" stroke="#fff" stroke-opacity=".6" stroke-width="1" stroke-linecap="round" transform="translate(-.8 -.8)"/></svg>
+</div>
+
+<div class="modal" id="help" hidden>
+  <div class="card helpcard">
+    <button class="x" id="helpClose">✕</button>
+    <h2>How to use MATH-helper</h2>
+    <p class="rc-sub">Everything you can do, in one page.</p>
+    <h3>🧮 Calculator</h3>
+    <ul>
+      <li>Type a problem with the keys (or your keyboard) and press the blue <b>=</b>. The notebook shows <b>every step</b> and why.</li>
+      <li>Press <b>✏️ Show it on paper</b> under a step to see carrying, borrowing, long multiplication or long division.</li>
+      <li>Under the steps, <b>⚠️ How people get it wrong</b> lists the usual mistakes, so you can avoid them.</li>
+      <li><b>x</b> and the pink <b>=</b> make equations: <i>2x + 5 = 17</i> or <i>x² − 5x + 6 = 0</i>. Press <b>=</b> again to see a second answer.</li>
+      <li><b>SHIFT</b> gives the gold labels (sin⁻¹, ∛, 10ˣ…). <b>S⇔D</b> switches fraction ↔ decimal. <b>MODE</b> switches degrees/radians.</li>
+      <li><b>◀ ▶</b> move the cursor, <b>DEL</b> deletes, <b>AC</b> clears. On a keyboard: Enter = equals, Backspace, Esc.</li>
+      <li>You can type words too: <i>what is 12 times 7</i>, <i>5 squared</i>, <i>17 mod 5</i>, or <i>2x + 3 &gt; 7</i>. Enter a single number to see its factors.</li>
+    </ul>
+    <h3>✍️ Draw</h3>
+    <ul>
+      <li>Write a problem on the graph paper with your mouse, finger or pen.</li>
+      <li>Stop for <b>10 seconds</b> (watch the timer) and it reads your writing, writes the answer in red and shows the steps. <b>⚡ Answer now</b> skips the wait.</li>
+      <li>Leave a little space between symbols. Draw fractions with a line, and exponents small and up high. In an equation, ✕ means the letter x.</li>
+      <li>If it misreads something, press <b>🧮 Fix it on the calculator</b>. Use 🧽 Eraser, ↶ Undo or 🗑 Clear to fix your writing.</li>
+    </ul>
+    <h3>📈 Graph</h3>
+    <ul>
+      <li>Type equations like <i>y = 2x + 1</i>, <i>y = x² − 4</i>, <i>y = sin(x)</i>, <i>x² + y² = 25</i>, <i>y &lt; x + 1</i> or a point <i>(2, 3)</i>. Press Enter for a new line.</li>
+      <li>Drag the paper to move, scroll or pinch to zoom, and ⌂ goes back to the middle. Tap the coloured dot to hide or show a graph.</li>
+      <li>Grey dots show where a graph crosses an axis, turns around, or crosses another graph — tap one to see its coordinates.</li>
+      <li>The notebook explains each graph: slope and intercept, vertex, circle center and radius, plus the distance and midpoint between two points.</li>
+    </ul>
+    <h3>📐 Geometry</h3>
+    <ul>
+      <li>Pick a shape: rectangles, triangles, Pythagoras, circles, polygons, angles, boxes, cylinders, spheres, cones and pyramids.</li>
+      <li>Type the measurements. It draws the shape to scale and works out area, perimeter, volume, surface area and angles, step by step with each formula.</li>
+    </ul>
+    <h3>📊 Statistics</h3>
+    <ul><li>On the calculator, type a list like <i>2, 4, 4, 5, 9</i> to get the mean, median, mode and range, or <i>median 5 1 9 3</i> for just one.</li></ul>
+    <h3>🏫 Practice</h3>
+    <ul>
+      <li>Pick a subject and Easy / Medium / Hard. Type your answer on the chalkboard and press <b>Check</b>.</li>
+      <li><b>💡 Hint</b> gives a nudge, and <b>📖 Show me how</b> shows every step. If you make a well-known mistake, it tells you which one.</li>
+      <li>You earn ⭐ stars and 🔥 streaks — 5 in a row rings the bell! Your <b>📋 Report card</b> shows a grade for each subject.</li>
+    </ul>
+    <h3>🎒 My grade</h3>
+    <ul><li>Pick your grade under the sticky note. The examples and Practice subjects focus on what your grade learns. Tap it again to see everything.</li></ul>
+    <h3>🎵 Music, sound and paper</h3>
+    <ul>
+      <li>The radio plays study music: ⏮ ⏭ change songs, ▶ pauses, VOL sets the loudness. 🔔 turns sound effects on/off.</li>
+      <li>When a page has more than 10 steps, press <b>⛶ Full page</b> to make the paper fill the screen (Esc closes it).</li>
+      <li>Your history, stars and grade save by themselves every 30 seconds.</li>
+    </ul>
+  </div>
+</div>
 
 <script type="module" src="js/app.js"></script>
 </body>

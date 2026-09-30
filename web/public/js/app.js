@@ -1,7 +1,11 @@
 // MATH-helper: the calculator, the notebook that explains every answer, Practice mode, the radio and saving.
 import { solve, fmt, clean, fracHTML, polyStr, readAnswer, MathError } from './math.js';
 import { writtenMethod } from './methods.js';
-import { TOPICS, LEVELS, makeProblem } from './school.js';
+import { mistakes } from './mistakes.js';
+import { initDraw, WAIT } from './draw.js';
+import { initGraph, compile, explain as explainGraphItems, COLORS } from './graph.js';
+import { SHAPES } from './geometry.js';
+import { TOPICS, LEVELS, makeProblem, GRADES, GRADE_EXAMPLES, gradeName, forGrade, levelFor } from './school.js';
 import { sfx, setSfx, radio, TRACKS, setMusicVolume, audioCtx } from './audio.js';
 
 const $ = s => document.querySelector(s);
@@ -159,6 +163,7 @@ function evaluate() {
     showNb('steps');
     return;
   }
+  r.src = src;
   C.result = r; C.done = true; C.rootIdx = 0; C.showFrac = r.kind === 'frac';
   if (typeof r.value === 'number' && isFinite(r.value)) S.ans = r.value;
   else if (r.roots?.length) S.ans = r.roots[0];
@@ -169,6 +174,7 @@ function evaluate() {
 
 // ---------- the notebook ----------
 function answerHTML(r) {
+  if (r.answerHTML) return r.answerHTML;
   if (r.kind === 'frac' && r.frac) {
     const [n, d] = r.frac; let s = (n < 0 ? '−' : '') + fracHTML(Math.abs(n), d);
     if (Math.abs(n) > d) s += ` = ${fmt(Math.trunc(n / d))} ${fracHTML(Math.abs(n % d), d)}`;
@@ -182,7 +188,7 @@ function answerHTML(r) {
 function renderExplain(el, r, { sound = true, heading = r.title } = {}) {
   let h = `<h3 class="nb-title">${heading}<small>${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</small></h3>`;
   h += `<div class="probline">Problem: <span class="m">${r.start}</span></div>`;
-  h += `<div class="answerbox"><span>Answer: <b class="m">${answerHTML(r)}</b></span></div>`;
+  if (!r.noAnswer) h += `<div class="answerbox"><span>${r.answerLabel || 'Answer'}: <b class="m">${answerHTML(r)}</b></span></div> <button class="copy" title="Copy the answer">📋 Copy</button>`;
   h += '<ol class="steps">';
   r.steps.forEach((s, i) => {
     const wm = writtenMethod(s.method);
@@ -194,9 +200,15 @@ function renderExplain(el, r, { sound = true, heading = r.title } = {}) {
     </li>`;
   });
   h += '</ol>';
+  const oops = r.src ? mistakes(r.src, r) : [];
+  if (oops.length) h += `<div class="oops" style="--d:${(0.3 + r.steps.length * 0.28).toFixed(2)}s"><h4>⚠️ How people get it wrong</h4><ul>${oops.map(o => `<li><s class="m">${esc(o.wrong)}</s> <span>✘</span> ${esc(o.why)}</li>`).join('')}</ul></div>`;
   el.innerHTML = h;
+  if (el.querySelector('.copy')) el.querySelector('.copy').onclick = e => { navigator.clipboard?.writeText(r.answer.replace(/<[^>]+>/g, '')).then(() => { e.target.textContent = '✓ Copied'; setTimeout(() => e.target.textContent = '📋 Copy', 1500); }).catch(() => {}); sfx.click(); };
+  el.querySelectorAll('details.method').forEach(d => d.addEventListener('toggle', () => { fitPaper(el); updateZoom(); }));
+  fitPaper(el); setTimeout(updateZoom, 50);
   el.closest('.page').scrollTop = 0;
   el.querySelectorAll('details.method').forEach(d => d.addEventListener('toggle', () => { if (d.open) sfx.pencil(0.5); }));
+  if (r.noAnswer) el.querySelector('.probline')?.remove();
   if (sound) { sfx.page(); r.steps.slice(0, 6).forEach((_, i) => setTimeout(() => sfx.pencil(0.3), 150 + i * 280)); }
 }
 function renderError(el, src, msg) {
@@ -220,7 +232,8 @@ function renderHistory() {
 }
 function showNb(which) {
   $$('#calcNote .nbt').forEach(b => b.classList.toggle('on', b.dataset.nb === which));
-  $('#nbSteps').hidden = which !== 'steps'; $('#nbHist').hidden = which !== 'hist';
+  $('#nbSteps').hidden = which !== 'steps'; $('#nbHist').hidden = which !== 'hist'; $('#nbTry').hidden = which !== 'try';
+  setTimeout(refitAll, 30);
 }
 $$('#calcNote .nbt').forEach(b => b.onclick = () => { sfx.page(); showNb(b.dataset.nb); });
 
@@ -233,8 +246,37 @@ function runExample(src) {
   evaluate(); drawLCD();
 }
 const EXAMPLES = ['3 + 4 × 2', '(8 − 3) × 4²', '1/2 + 1/3', '3/4 × 2/9', '15% of 80', '√50', '456 × 23', '7825 ÷ 25', '2x + 5 = 17', '3(x − 2) = 2x + 4', 'x² − 5x + 6 = 0', '−3² + 10', 'sin(30) + cos(60)', '5!', '1234 − 567', '17 ÷ 5'];
-$('#examples').innerHTML = EXAMPLES.map(e => `<button>${esc(e)}</button>`).join('');
-$$('#examples button').forEach(b => b.onclick = () => { sfx.key('fn'); startMusicIfWanted(); runExample(b.textContent.replace(/÷/g, '/').replace(/×/g, '*')); });
+function drawExamples() {
+  const g = S.grade, list = g == null ? EXAMPLES : GRADE_EXAMPLES[g];
+  $('#examples').innerHTML = list.map(e => `<button>${esc(e)}</button>`).join('');
+  $('#exGrade').textContent = g == null ? '' : '(' + gradeName(g) + ')';
+  const more = g == null ? [...EXAMPLES, '6!!', '2x + 3 > 7', 'what is 12 times 7', '17 mod 5', '360', '5x3'] : [...list, ...(GRADE_EXAMPLES[g + 1] || GRADE_EXAMPLES[g - 1]).slice(0, 4)];
+  $('#nbTry').innerHTML = `<h3 class="nb-title">Try one of these!${g == null ? '' : `<small>${gradeName(g)}</small>`}</h3><div class="trylist">` + more.map(e => `<button>${esc(e)}</button>`).join('') + '</div>';
+  $$('#examples button, #nbTry button').forEach(b => b.onclick = () => { sfx.key('fn'); startMusicIfWanted(); runExample(b.textContent.replace(/÷/g, '/').replace(/×/g, '*')); });
+}
+function drawGrades() {
+  $('#grades').innerHTML = GRADES.map((l, i) => `<button class="gbtn${S.grade === i ? ' on' : ''}" data-g="${i}">${l}</button>`).join('');
+  $$('.gbtn').forEach(b => b.onclick = () => setGrade(S.grade === +b.dataset.g ? null : +b.dataset.g));
+  $('#gradeNote').innerHTML = S.grade == null ? 'Pick your grade and I’ll focus on your kind of math.' : `Focusing on <b>${gradeName(S.grade)}</b> math: the examples above and the Practice subjects are picked for you. Tap it again to see everything.`;
+}
+function setGrade(g) {
+  S.grade = g; sfx.chalk();
+  drawGrades(); drawExamples(); drawTopicsForGrade();
+  if (g != null) {
+    const cur = TOPICS.find(t => t.id === S.school.topic);
+    const t = forGrade(cur, g) ? cur : TOPICS.find(t => forGrade(t, g)) || cur;
+    S.school.topic = t.id; S.school.level = levelFor(t, g);
+    if (P.prob) newProblem();
+  }
+  save(false);
+}
+function drawTopicsForGrade() {
+  $$('.topic').forEach(b => {
+    const t = TOPICS.find(t => t.id === b.dataset.t), on = S.grade == null || forGrade(t, S.grade);
+    b.classList.toggle('dim', !on);
+    b.classList.toggle('mine', S.grade != null && on);
+  });
+}
 
 // keyboard
 addEventListener('keydown', e => {
@@ -278,6 +320,7 @@ function newProblem() {
   const s = S.school;
   let p, sol;
   for (let i = 0; i < 20; i++) { p = makeProblem(s.topic, s.level); try { sol = solve(p.src, { deg: true }); break; } catch { } }
+  if (sol) sol.src = p.src;
   Object.assign(P, { prob: p, sol, tries: 0, over: false, hinted: false });
   const t = TOPICS.find(t => t.id === s.topic);
   $('#bTopic').textContent = t.icon + ' ' + t.name;
@@ -323,6 +366,11 @@ function check() {
   } catch (e) { setFeedback('hint', "I can't read that answer — " + (e.message === '=' ? 'just type the number.' : e.message)); sfx.error(); return; }
   const st = s.stats[p.topic] = s.stats[p.topic] || { tries: 0, right: 0 };
   if (P.tries === 0) st.tries++;
+  let known = null;
+  if (!ok) try {
+    const val = p.kind === 'roots' ? null : readAnswer(raw);
+    known = mistakes(p.src, P.sol).find(m => typeof m.value === 'number' ? val != null && Math.abs(m.value - val) < 1e-6 : false) || null;
+  } catch { }
   if (ok) {
     P.over = true;
     if (P.tries === 0) st.right++;
@@ -339,6 +387,7 @@ function check() {
     P.tries++; s.streak = 0;
     sfx.wrong();
     if (note) { setFeedback('hint', esc(note)); P.tries--; }
+    else if (known) { setFeedback('bad', `Not quite — ${esc(known.why)} <small>Try again!</small>`); if (P.tries >= 2) { P.over = true; explainProblem(); $('#showBtn').textContent = '📖 See the steps'; } }
     else if (P.tries >= 2) { setFeedback('bad', `Not quite. The answer is <b>${answerHTML(P.sol)}</b> — look at the steps to see how →`); P.over = true; explainProblem(); $('#showBtn').textContent = '📖 See the steps'; }
     else setFeedback('bad', pick(['Not quite — try again! 💪', 'Close? Check your work and try again.', 'Hmm, not that one. One more try!']));
   }
@@ -411,9 +460,158 @@ function show(view) {
   $$('.view').forEach(v => v.classList.toggle('on', v.id === 'view-' + view));
   if (view === 'practice') { if (!P.prob) newProblem(); else if (matchMedia('(pointer: fine)').matches) $('#ans').focus(); }
   S.view = view;
+  requestAnimationFrame(() => { fit(); if (view === 'draw') drawCtl.size(); if (view === 'graph') { gctl.size(); explainGraph(); } refitAll(); });
 }
 $$('.tab').forEach(t => t.onclick = () => { sfx.click(); startMusicIfWanted(); if (t.dataset.view === 'practice' && !$('#view-practice').classList.contains('on')) sfx.bell(); show(t.dataset.view); });
-window.MH = { show };
+window.MH = { show: v => show(v) };
+
+// ---------- Draw mode ----------
+const drawCtl = initDraw({
+  solve: (t, c) => solve(t, c), ctx: () => ({ deg: S.deg, ans: S.ans }),
+  onAnswer: (r, text) => {
+    r.src = text;
+    if (typeof r.value === 'number' && isFinite(r.value)) S.ans = r.value;
+    S.history.unshift({ src: text, ans: r.answer.replace(/<[^>]+>/g, '') }); S.history = S.history.slice(0, 60); renderHistory();
+    renderExplain($('#dSteps'), r);
+  },
+  onError: (text, msg) => {
+    $('#dSteps').innerHTML = `<h3 class="nb-title">Hmm, I'm not sure</h3>
+      <div class="probline">I read: <span class="m">${esc(text || '(nothing)')}</span></div>
+      <p class="errnote"><span class="big">✏️</span> ${esc(msg)}</p>
+      <p class="why">Tips: write each number or sign a little apart, make it big, and draw × as two crossing lines. If I read one symbol wrong, press <b>🧮 Fix it on the calculator</b>.</p>`;
+  },
+  toCalc: text => { show('calc'); runExample(text); },
+});
+/** Shrinks the writing so problems with up to 10 steps fit on the page without zooming. */
+function fitPaper(el) {
+  const page = el.closest('.page'); el.style.zoom = '';
+  if (!page || !page.clientHeight || !document.body.classList.contains('fitted') || page.closest('.zoomed')) return;
+  if (el.querySelectorAll('.step').length > 10) return;          // longer than 10 steps: use ⛶ Full page
+  let z = 1;
+  while (page.scrollHeight > page.clientHeight + 2 && z > 0.56) { z -= 0.04; el.style.zoom = z.toFixed(2); }
+}
+const refitAll = () => { $$('.nb-steps, .nb-hist, .nb-try').forEach(el => { if (!el.hidden) fitPaper(el); }); updateZoom(); };
+$('#dSteps').innerHTML = `<div class="nb-empty"><h3>Draw it out ✍️</h3><p>Write any problem on the graph paper — like <b>12 + 7</b>, <b>3 × 4 − 5</b>, a fraction with a line, <b>√81</b>, <b>2x + 5 = 17</b> or <b>6!</b>.</p><p>When you stop for <b>${WAIT} seconds</b> I'll read it, write the answer in red, and show every step here.</p><p>Don't want to wait? Press <b>⚡ Answer now</b>.</p><p>Tip: in an equation, a ✕ you draw means the letter x.</p></div>`;
+
+// ---------- Graph mode ----------
+S.graph = Array.isArray(S.graph) && S.graph.length ? S.graph : ['y = 2x + 1', 'y = x² − 4', ''];
+S.graphHidden = S.graphHidden || [];
+let gItems = [];
+const gctl = initGraph({ onChange: () => explainGraph() });
+function compileGraphs() {
+  gItems = S.graph.map((src, i) => { let c = null, err = ''; try { c = compile(src); } catch (e) { err = e.message; } return { src, c, err, col: COLORS[i % COLORS.length], hidden: !!S.graphHidden[i] }; });
+  gItems.forEach((it, i) => { const row = $$('.grow')[i]; if (row) row.querySelector('.gerr').textContent = it.err; });
+  gctl.set(gItems);
+}
+let gExplainT = null;
+function explainGraph() {
+  clearTimeout(gExplainT);
+  gExplainT = setTimeout(() => {
+    const live = gItems.filter(i => i.c && !i.hidden);
+    const steps = live.length ? explainGraphItems(live, gctl.view()) : [{ rule: 'Nothing drawn yet', text: 'Type an equation on the left, like y = 2x + 1 or x² + y² = 25.', before: 'y = …' }];
+    renderExplain($('#gSteps'), { title: 'About these graphs', noAnswer: true, steps, start: '' }, { sound: false });
+  }, 250);
+}
+function renderGList() {
+  $('#gList').innerHTML = S.graph.map((src, i) => `<div class="grow"><button class="gdot${S.graphHidden[i] ? ' off' : ''}" style="--c:${COLORS[i % COLORS.length]}" title="Show / hide" data-i="${i}"></button><div class="gin"><input value="${esc(src)}" data-i="${i}" placeholder="y = …" spellcheck="false" autocomplete="off"><div class="gerr"></div></div><button class="gdel" data-i="${i}" title="Remove">✕</button></div>`).join('');
+  $$('.grow input').forEach(inp => inp.oninput = () => { S.graph[+inp.dataset.i] = inp.value; compileGraphs(); explainGraph(); });
+  $$('.grow input').forEach(inp => inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); const i = +inp.dataset.i; if (i === S.graph.length - 1) { S.graph.push(''); renderGList(); } $$('.grow input')[i + 1]?.focus(); } });
+  $$('.gdot').forEach(b => b.onclick = () => { const i = +b.dataset.i; S.graphHidden[i] = !S.graphHidden[i]; sfx.click(); renderGList(); });
+  $$('.gdel').forEach(b => b.onclick = () => { const i = +b.dataset.i; S.graph.splice(i, 1); S.graphHidden.splice(i, 1); if (!S.graph.length) S.graph.push(''); sfx.clear(); renderGList(); });
+  compileGraphs(); explainGraph();
+}
+$('#gAdd').onclick = () => { S.graph.push(''); sfx.click(); renderGList(); $$('.grow input').at(-1).focus(); };
+const G_EX = ['y = 2x + 1', 'y = x² − 4', 'y = sin(x)', 'x² + y² = 25', 'y < x + 1', '(2, 3)', 'y = 1/x', 'y = |x|', 'x = 3', 'y = 2^x', 'y = x³ − 3x', 'y = √x'];
+$('#gEx').innerHTML = '<span>Try:</span>' + G_EX.map(e => `<button>${esc(e)}</button>`).join('');
+$$('#gEx button').forEach(b => b.onclick = () => {
+  sfx.key('fn');
+  const t = b.textContent.replace('|x|', 'abs(x)'), empty = S.graph.findIndex(v => !v.trim());
+  if (empty >= 0) S.graph[empty] = t; else S.graph.push(t);
+  renderGList();
+});
+
+// ---------- Geometry mode ----------
+S.geo = Object.assign({ shape: 'rect', unit: 'cm', vals: {} }, S.geo);
+function buildGeo() {
+  $('#shapes').innerHTML = SHAPES.map(sh => `<button class="shape" data-s="${sh.id}"><span class="si">${sh.icon}</span>${sh.name}</button>`).join('');
+  $$('.shape').forEach(b => b.onclick = () => { sfx.page(); S.geo.shape = b.dataset.s; geoForm(); });
+  $('#geoUnit').value = S.geo.unit;
+  $('#geoUnit').onchange = e => { S.geo.unit = e.target.value; sfx.click(); geoSolve(); };
+  geoForm();
+}
+function geoForm() {
+  const sh = SHAPES.find(s => s.id === S.geo.shape) || SHAPES[0];
+  $$('.shape').forEach(b => b.classList.toggle('on', b.dataset.s === sh.id));
+  $('#geoName').textContent = sh.icon + ' ' + sh.name;
+  $('#geoNote').textContent = sh.note || 'Type the measurements — everything updates as you type.';
+  const vals = S.geo.vals[sh.id] || {};
+  $('#geoFields').innerHTML = sh.fields.map(([k, label, def]) => `<label><span>${label}</span><input data-k="${k}" inputmode="decimal" value="${esc(vals[k] ?? def)}" placeholder="?"></label>`).join('');
+  $$('#geoFields input').forEach(inp => inp.oninput = () => { (S.geo.vals[sh.id] = S.geo.vals[sh.id] || {})[inp.dataset.k] = inp.value; geoSolve(); });
+  geoSolve(true);
+}
+function geoSolve(sound) {
+  const sh = SHAPES.find(s => s.id === S.geo.shape) || SHAPES[0], u = S.geo.unit === 'units' ? 'units' : S.geo.unit;
+  const v = {}; let bad = '';
+  $$('#geoFields input').forEach(inp => {
+    const t = inp.value.trim(); let n = NaN;
+    if (t) { try { n = readAnswer(t); } catch { bad = `I can't read "${t}".`; } if (!(n > 0)) bad = bad || 'Measurements have to be bigger than 0.'; }
+    v[inp.dataset.k] = n;
+  });
+  const needAll = sh.id !== 'right' && sh.id !== 'para';
+  if (!bad && needAll && Object.values(v).some(n => !isFinite(n))) bad = 'Fill in every box.';
+  const r = bad ? { error: bad } : sh.solve(v, u);
+  if (r.error) { $('#geoAns').innerHTML = `<p class="geoerr">✏️ ${esc(r.error)}</p>`; $('#geoDraw').innerHTML = ''; return; }
+  $('#geoDraw').innerHTML = r.svg;
+  $('#geoAns').innerHTML = r.answers.map(([k, val]) => `<div class="gcard"><span>${k}</span><b>${esc(val)}</b></div>`).join('');
+  const start = sh.fields.filter(([k]) => isFinite(v[k])).map(([k, label]) => `${label} = ${fmt(v[k])}`).join(', ');
+  renderExplain($('#geoSteps'), { title: sh.name, start, steps: r.steps, answerHTML: r.answers.map(([k, val]) => `${k}: ${esc(val)}`).join('<br>'), answer: r.answers.map(([k, val]) => `${k}: ${val}`).join(', '), answerLabel: 'Answers' }, { sound: !!sound });
+}
+
+// ---------- fit on one screen + full-page zoom ----------
+function fit() {
+  const desk = matchMedia('(min-width: 1101px) and (min-height: 560px)').matches;
+  document.body.classList.toggle('fitted', desk);
+  const calc = $('#calc');
+  calc.style.zoom = '';
+  if (desk && $('#view-calc').classList.contains('on')) {
+    const avail = $('#view-calc').clientHeight - 10, need = calc.offsetHeight + 24;
+    calc.style.zoom = Math.max(0.55, Math.min(1.15, avail / need)).toFixed(3);
+  }
+  const bw = $('.boardwrap');
+  bw.style.zoom = '';
+  if (desk && $('#view-practice').classList.contains('on')) {
+    const avail = $('.classroom').clientHeight - 6, need = bw.offsetHeight + 4;
+    if (need > avail) bw.style.zoom = Math.max(0.6, avail / need).toFixed(3);
+  }
+}
+function updateZoom() {
+  $$('.notebook').forEach(nb => {
+    const page = nb.querySelector('.page'), btn = nb.querySelector('.zoomBtn');
+    const over = page.scrollHeight > page.clientHeight + 6;
+    btn.hidden = !(over || nb.classList.contains('zoomed'));
+  });
+}
+$$('.zoomBtn').forEach(b => b.onclick = () => {
+  const nb = b.closest('.notebook'), on = !nb.classList.contains('zoomed');
+  nb.classList.toggle('zoomed', on); document.body.classList.toggle('paperzoom', on);
+  b.textContent = on ? '✕ Close full page' : '⛶ Full page';
+  nb.querySelectorAll('.nb-steps, .nb-hist, .nb-try').forEach(el => on ? (el.style.zoom = '') : fitPaper(el));
+  sfx.page(); updateZoom();
+});
+addEventListener('keydown', e => { if (e.key === 'Escape') { const z = $('.notebook.zoomed'); if (z) { z.querySelector('.zoomBtn').click(); e.stopImmediatePropagation(); } } }, true);
+addEventListener('resize', () => { fit(); refitAll(); });
+
+// ---------- help ----------
+$('#helpBtn').onclick = () => { sfx.page(); $('#help').hidden = false; };
+$('#helpClose').onclick = () => { sfx.click(); $('#help').hidden = true; };
+$('#help').onclick = e => { if (e.target.id === 'help') $('#help').hidden = true; };
+addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#help').hidden) { $('#help').hidden = true; e.stopImmediatePropagation(); } }, true);
+
+// ---------- school supplies on the desk ----------
+function buildDeco() {
+  const ruler = $('#ruler');
+  ruler.innerHTML = Array.from({ length: 31 }, (_, i) => `<span style="left:${10 + i * 40}px">${i}</span>`).join('') + '<i>MATH-helper · 30 cm</i>';
+}
 
 // ---------- radio ----------
 function drawRadio() {
@@ -449,10 +647,10 @@ function unlockAudio() {
 ['pointerdown', 'keydown', 'touchend', 'click'].forEach(ev => addEventListener(ev, unlockAudio, true));
 
 // ---------- start ----------
-buildKeys(); buildPractice(); renderEmpty(); renderHistory(); drawLCD(); drawRadio(); drawScores();
+buildKeys(); buildPractice(); buildGeo(); renderGList(); drawExamples(); drawGrades(); drawTopicsForGrade(); buildDeco(); renderEmpty(); renderHistory(); drawLCD(); drawRadio(); drawScores();
 if (params.get('topic')) S.school.topic = params.get('topic');
 if (params.get('level')) S.school.level = +params.get('level');
 show(params.get('view') || 'calc');
 if (params.get('q')) runExample(params.get('q'));
 startMusicIfWanted(); setTimeout(unlockAudio, 400);
-window.__mh = { S, C, P, press, runExample, solve, newProblem, check, keyByAction };
+window.__mh = { S, C, P, press, runExample, solve, newProblem, check, keyByAction, drawCtl, fit, updateZoom, gctl, renderGList, geoForm };

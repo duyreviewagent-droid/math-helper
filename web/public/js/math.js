@@ -4,7 +4,7 @@
 export class MathError extends Error {}
 
 const FUNCS = ['asin', 'acos', 'atan', 'sin', 'cos', 'tan', 'sqrt', 'cbrt', 'log', 'ln', 'abs'];
-const WORDS = [...FUNCS, 'pi', 'ans', 'of', 'e', 'x'].sort((a, b) => b.length - a.length);
+const WORDS = [...FUNCS, 'mod', 'pi', 'ans', 'of', 'e', 'x', 'y'].sort((a, b) => b.length - a.length);
 export const FN_LABEL = { sin: 'sin', cos: 'cos', tan: 'tan', asin: 'sin⁻¹', acos: 'cos⁻¹', atan: 'tan⁻¹', sqrt: '√', cbrt: '∛', log: 'log', ln: 'ln', abs: 'abs' };
 
 // ---------- numbers ----------
@@ -72,12 +72,15 @@ function tokenize(src) {
         if (!w) throw new MathError(`I don't know what "${word}" means. Try numbers, x, and keys like sin, √, log.`);
         if (FUNCS.includes(w)) out.push({ k: 'fn', v: w });
         else if (w === 'x') out.push({ k: 'var' });
+        else if (w === 'y') out.push({ k: 'var', name: 'y' });
         else if (w === 'of') out.push({ k: 'op', v: '*', of: true });
+        else if (w === 'mod') out.push({ k: 'op', v: 'mod' });
         else out.push({ k: 'const', v: w });
         word = word.slice(w.length);
       }
       continue;
     }
+    if (c === '!' && s[i + 1] === '!') { out.push({ k: 'op', v: '!!' }); i += 2; continue; }
     if ('+-*/^!%='.includes(c)) { out.push({ k: 'op', v: c }); i++; continue; }
     if (c === '(') { out.push({ k: 'lp' }); i++; continue; }
     if (c === ')') { out.push({ k: 'rp' }); i++; continue; }
@@ -102,7 +105,7 @@ export function parse(src) {
   function term() {
     let n = unary();
     for (;;) {
-      if (isOp('*') || isOp('/')) { const tk = next(); n = { t: 'bin', op: tk.v, a: n, b: unary(), of: tk.of }; }
+      if (isOp('*') || isOp('/') || isOp('mod')) { const tk = next(); n = { t: 'bin', op: tk.v, a: n, b: unary(), of: tk.of }; }
       else if (startsValue(peek())) n = { t: 'bin', op: '*', a: n, b: power(), implicit: true };
       else break;
     }
@@ -120,7 +123,7 @@ export function parse(src) {
   }
   function postfix() {
     let n = primary();
-    while (isOp('!') || isOp('%')) n = { t: 'post', op: next().v, a: n };
+    while (isOp('!') || isOp('!!') || isOp('%')) n = { t: 'post', op: next().v, a: n };
     return n;
   }
   function primary() {
@@ -128,7 +131,7 @@ export function parse(src) {
     if (!tk) throw new MathError('The problem ends too soon — something is missing at the end.');
     if (tk.k === 'num') return { t: 'num', v: tk.v };
     if (tk.k === 'const') return { t: 'const', name: tk.v };
-    if (tk.k === 'var') return { t: 'var' };
+    if (tk.k === 'var') return tk.name ? { t: 'var', name: tk.name } : { t: 'var' };
     if (tk.k === 'fn') {
       let a;
       if (peek() && peek().k === 'lp') { next(); a = expr(); if (peek() && peek().k === 'rp') next(); }
@@ -159,15 +162,15 @@ export function parse(src) {
 }
 
 // ---------- showing expressions ----------
-const PREC = { '+': 3, '-': 3, '*': 4, '/': 4 };
+const PREC = { '+': 3, '-': 3, '*': 4, '/': 4, mod: 4 };
 /** Writes a tree as text. html=true gives superscripts, pretty fractions and a highlight around `hl`. */
 export function show(n, o = {}, pp = 0, right = false) {
   const html = !!o.html; let s, p;
-  const sym = { '+': ' + ', '-': ' − ', '*': ' × ', '/': ' ÷ ' };
+  const sym = { '+': ' + ', '-': ' − ', '*': ' × ', '/': ' ÷ ', mod: ' mod ' };
   switch (n.t) {
     case 'num': s = fmt(n.v); p = n.v < 0 ? (right || pp >= 5 ? 0 : 5) : 9; break;
     case 'const': s = { pi: 'π', e: 'e', ans: 'Ans' }[n.name]; p = 9; break;
-    case 'var': s = 'x'; p = 9; break;
+    case 'var': s = n.name || 'x'; p = 9; break;
     case 'fn': {
       const inner = show(n.a, o, 0);
       s = (n.name === 'abs') ? '|' + inner + '|' : FN_LABEL[n.name] + '(' + inner + ')'; p = 8; break;
@@ -183,7 +186,7 @@ export function show(n, o = {}, pp = 0, right = false) {
         const bp = PREC[n.op];
         const l = show(n.a, o, bp), r = show(n.b, o, bp + 1, true);
         if (n.of) s = l + ' of ' + r;
-        else if (n.implicit && n.a.t === 'num' && n.a.v >= 0 && (n.b.t === 'var' || n.b.t === 'const' || (n.b.t === 'bin' && n.b.op === '^' && n.b.a.t === 'var'))) s = l + r;
+        else if (n.implicit && n.a.t === 'num' && (n.b.t === 'var' || n.b.t === 'const' || (n.b.t === 'bin' && n.b.op === '^' && n.b.a.t === 'var'))) s = l + r;
         else if (html && n.op === '/' && o.frac && n.a.t === 'num' && n.b.t === 'num' && isInt(n.a.v) && isInt(n.b.v)) s = fracHTML(n.a.v, n.b.v);
         else s = l + sym[n.op] + r;
         p = bp;
@@ -203,22 +206,40 @@ export function evalNode(n, ctx, x = 0) {
   const ev = m => evalNode(m, ctx, x);
   switch (n.t) {
     case 'num': return n.v;
-    case 'var': return x;
+    case 'var': return n.name === 'y' ? (ctx.yv ?? 0) : x;
     case 'const': return n.name === 'pi' ? Math.PI : n.name === 'e' ? Math.E : (ctx.ans ?? 0);
     case 'neg': return -ev(n.a);
-    case 'post': return n.op === '%' ? ev(n.a) / 100 : fact(ev(n.a));
+    case 'post': return n.op === '%' ? ev(n.a) / 100 : n.op === '!!' ? dfact(ev(n.a)) : fact(ev(n.a));
     case 'fn': return fnValue(n.name, ev(n.a), ctx).v;
     case 'bin': {
       const a = ev(n.a), b = ev(n.b);
-      return n.op === '+' ? a + b : n.op === '-' ? a - b : n.op === '*' ? a * b : n.op === '/' ? a / b : Math.pow(a, b);
+      return n.op === '+' ? a + b : n.op === '-' ? a - b : n.op === '*' ? a * b : n.op === '/' ? a / b : n.op === 'mod' ? modv(a, b) : Math.pow(a, b);
     }
   }
 }
+function lgamma(z) {            // log of the gamma function (Lanczos)
+  const g = 7, c = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+  if (z < 0.5) return Math.log(Math.PI / Math.abs(Math.sin(Math.PI * z))) - lgamma(1 - z);
+  z -= 1; let x = c[0]; for (let i = 1; i < 9; i++) x += c[i] / (z + i);
+  const t = z + g + 0.5; return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+}
+function gamma(z) { if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamma(1 - z)); return Math.exp(lgamma(z)); }
+function tooBig(label, log10) {
+  const e = Math.floor(log10), m = Math.pow(10, log10 - e);
+  return new MathError(`${label} is a number with ${(e + 1).toLocaleString()} digits (about ${m.toFixed(3)} × 10^${e.toLocaleString()}). That's too big for any calculator to keep working with!`);
+}
 function fact(n) {
-  if (!isInt(n) || n < 0) throw new MathError('Factorial (!) only works on whole numbers 0, 1, 2, 3…');
-  if (n > 170) throw new MathError('That factorial is too big for any calculator!');
+  if (isInt(n) && n < 0) throw new MathError('Factorial (!) of a negative whole number is undefined.');
+  if (n > 170) throw tooBig(`${fmt(n)}!`, lgamma(n + 1) / Math.LN10);
+  if (!isInt(n)) return gamma(n + 1);
   let r = 1; for (let i = 2; i <= n; i++) r *= i; return r;
 }
+function dfact(n) {
+  if (!isInt(n) || n < -1) throw new MathError('Double factorial (!!) works on whole numbers.');
+  if (n > 300) throw tooBig(`${fmt(n)}!!`, (() => { let l = 0; for (let i = n; i > 1; i -= 2) l += Math.log10(i); return l; })());
+  let r = 1; for (let i = n; i > 1; i -= 2) r *= i; return r;
+}
+const modv = (a, b) => { if (b === 0) throw new MathError("mod 0 doesn't work — you can't divide by zero."); return ((a % b) + b) % b; };
 const EXACT = {
   sin: { 0: '0', 30: '1/2', 45: '√2/2', 60: '√3/2', 90: '1', 180: '0', 270: '−1', 360: '0' },
   cos: { 0: '1', 30: '√3/2', 45: '√2/2', 60: '1/2', 90: '0', 180: '−1', 270: '0', 360: '1' },
@@ -285,6 +306,12 @@ function reduceNode(n, ctx) {
     case 'neg': return r(-V(n.a), `The minus sign in front means "the opposite of": −(${F(n.a)}) = ${fmt(-V(n.a))}.`, 'Signs');
     case 'post':
       if (n.op === '%') return r(V(n.a) / 100, `Percent means "out of 100", so ${F(n.a)}% = ${F(n.a)} ÷ 100 = ${fmt(V(n.a) / 100)}.`, 'Percent');
+      if (n.op === '!!') {
+        const k = dfact(V(n.a)), list = [];
+        for (let i = V(n.a); i > 1 && list.length < 12; i -= 2) list.push(i);
+        return r(k, `${F(n.a)}!! (double factorial) multiplies every OTHER number going down: ${list.join(' × ') || '1'}${list.length > 1 ? ' = ' + fmt(k) : ''}. (Not the same as (${F(n.a)}!)!, which would be ${fmt(V(n.a)) === '6' ? '720!' : 'enormous'}.)`, 'Factorial');
+      }
+      if (!isInt(V(n.a))) { const k = fact(V(n.a)); return r(k, `${F(n.a)}! isn't a whole number factorial, so it uses the gamma function (a smooth version of factorial): ${F(n.a)}! = Γ(${fmt(V(n.a) + 1)}) ≈ ${fmt(k)}.`, 'Factorial'); }
       {
         const k = fact(V(n.a));
         const list = V(n.a) <= 10 && V(n.a) >= 2 ? ' = ' + Array.from({ length: V(n.a) }, (_, i) => V(n.a) - i).join(' × ') : '';
@@ -317,6 +344,10 @@ function reduceNode(n, ctx) {
           if (isInt(a) && isInt(b) && !isInt(q) && a > 0 && b > 0) t += ` (${A} ÷ ${B} is ${Math.floor(a / b)} remainder ${a % b}${toFrac(q) ? `, or as a fraction ${fracText(a / gcd(a, b), b / gcd(a, b))}` : ''}.)`;
           if ((a < 0) !== (b < 0) && a !== 0) t += ' Signs are different, so the answer is negative.';
           return r(q, t, 'Multiply & divide (left to right)', { op: '/', a, b });
+        }
+        case 'mod': {
+          const v = modv(a, b);
+          return r(v, `mod means "the remainder": ${A} ÷ ${Bp} = ${fmt(Math.floor(a / b))} with ${fmt(v)} left over, so ${A} mod ${B} = ${fmt(v)}.`, 'Multiply & divide (left to right)');
         }
         case '^': {
           if (a === 0 && b <= 0) throw new MathError('0 to the power of 0 or a negative power is undefined.');
@@ -357,7 +388,7 @@ function candidates(n, out = []) {
   for (const k of kids(n)) if (!(k.scope && k.t !== 'num' && k !== n)) candidates(k, out);
   return out;
 }
-function hasVar(n) { return n.t === 'var' || kids(n).some(hasVar); }
+export function hasVar(n, name) { return (n.t === 'var' && (!name || (n.name || 'x') === name)) || kids(n).some(k => hasVar(k, name)); }
 
 /** Works out an expression with no x, returning every step. */
 export function stepsFor(tree, ctx) {
@@ -603,10 +634,38 @@ function fracWay(tree, src) {
 }
 
 /** The main entry: works out anything typed on the calculator. */
+const NUMWORDS = { zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, thirteen: 13, fourteen: 14, fifteen: 15, sixteen: 16, seventeen: 17, eighteen: 18, nineteen: 19, twenty: 20, thirty: 30, forty: 40, fifty: 50, sixty: 60, seventy: 70, eighty: 80, ninety: 90, hundred: 100, thousand: 1000, million: 1000000, half: 0.5 };
+/** "what is five plus 3 squared?" → "5 + 3^2" */
+export function wordsToMath(s) {
+  let t = ' ' + s.replace(/[“”"]/g, '') + ' ';
+  const R = (re, to) => { t = t.replace(re, to); };
+  R(/\b(what\s*is|what's|whats|how much is|calculate|compute|evaluate|work out|find|solve|simplify|please|the answer to)\b/gi, ' ');
+  R(/\?/g, ' ');
+  R(/\bsquare\s*root\s*of\b/gi, ' sqrt '); R(/\bcube\s*root\s*of\b/gi, ' cbrt ');
+  R(/\b(multiplied\s*by|times)\b/gi, ' * '); R(/\b(divided\s*by|over)\b/gi, ' / ');
+  R(/\b(plus|added\s*to|and)\b/gi, ' + '); R(/\b(minus|take\s*away|less)\b/gi, ' - ');
+  R(/\b(to\s*the\s*power\s*of|raised\s*to(\s*the\s*power\s*of)?|to\s*the)\b/gi, ' ^ ');
+  R(/\bsquared\b/gi, '^2'); R(/\bcubed\b/gi, '^3'); R(/\b(percent|per\s*cent)\b/gi, '%');
+  R(/\b(is\s*equal\s*to|equals|is)\b/gi, ' = '); R(/\b(remainder|modulo)\b/gi, ' mod ');
+  R(/\bfactorial\b/gi, '!'); R(/\b(is\s*)?(greater|more)\s*than\s*or\s*equal\s*to\b/gi, ' >= '); R(/\b(is\s*)?(less|fewer)\s*than\s*or\s*equal\s*to\b/gi, ' <= ');
+  R(/\b(is\s*)?(greater|more|bigger)\s*than\b/gi, ' > '); R(/\b(is\s*)?(less|smaller|fewer)\s*than\b/gi, ' < ');
+  R(/\b([a-z]+)\b/gi, w => NUMWORDS[w.toLowerCase()] !== undefined ? ' ' + NUMWORDS[w.toLowerCase()] + ' ' : w);
+  R(/\s+/g, ' ');
+  return t.trim().replace(/^=\s*/, '').replace(/\s*=$/, '');
+}
+
+/** The main entry: works out anything typed (or drawn) on the calculator. */
 export function solve(src, ctx = {}) {
-  const text = String(src).trim();
+  let text = String(src).trim();
   if (!text) throw new MathError('Type a problem first.');
+  if (/[a-wyz]{3,}/i.test(text.replace(/sin|cos|tan|sqrt|cbrt|log|ln|abs|pi|ans|mod|of/gi, ''))) text = wordsToMath(text);
+  if (!text) throw new MathError('Type a problem first.');
+  if (/(^|[^a-z])y([^a-z]|$)/i.test(text.replace(/\b(yes|why)\b/gi, ''))) throw new MathError('That has a y in it — open 📈 Graph to draw it, or use just x here.');
+  const stats = statsOf(text); if (stats) return stats;
+  if (/[<>≤≥]/.test(text)) return solveInequality(text, ctx);
   if (text.includes('=')) return solveEquation(text, ctx);
+  // "5x3" with no = sign means 5 times 3
+  for (let k = 0; k < 3; k++) text = text.replace(/(\d)\s*[xX]\s*(?=\d)/g, '$1×');
   const tree = parse(text);
   const start = show(tree, { html: true });
   if (hasVar(tree)) {
@@ -620,7 +679,7 @@ export function solve(src, ctx = {}) {
   const fr = toFrac(value, 1000);
   let answer = fmt(value);
   if (fr) answer += `  (= ${fr[0]}/${fr[1]})`;
-  if (!steps.length) steps.push({ rule: 'Nothing to do', text: 'That is already just a number.', before: start });
+  if (!steps.length) return numberFacts(value, start);
   return { kind: 'expr', value, frac: fr, answer, lcd: fmt(value), steps, start, title: steps.length > 1 ? 'Order of operations' : 'Work it out' };
 }
 
@@ -632,4 +691,127 @@ export function readAnswer(s) {
   const t = parse(s);
   if (hasVar(t)) throw new MathError('Just the number, please.');
   return evalNode(t, { deg: true });
+}
+
+// ---------- one number on its own: tell everything about it ----------
+function numberFacts(v, start) {
+  const steps = [];
+  if (isInt(v) && Math.abs(v) >= 2 && Math.abs(v) < 1e12) {
+    const n = Math.abs(v);
+    steps.push({ rule: 'Even or odd?', text: n % 2 === 0 ? `${fmt(v)} ends in ${String(n).slice(-1)}, so it splits into 2 equal groups — it's EVEN.` : `${fmt(v)} ends in ${String(n).slice(-1)}, so it can't split into 2 equal groups — it's ODD.`, before: start });
+    const pf = []; let m = n;
+    for (let f = 2; f * f <= m; f++) while (m % f === 0) { pf.push(f); m /= f; }
+    if (m > 1) pf.push(m);
+    if (pf.length === 1) steps.push({ rule: 'Prime number!', text: `${fmt(n)} can only be divided evenly by 1 and itself, so it is PRIME.`, before: `${fmt(n)} = 1 × ${fmt(n)}` });
+    else {
+      const cnt = {}; pf.forEach(f => cnt[f] = (cnt[f] || 0) + 1);
+      const pow = Object.entries(cnt).map(([f, c]) => c > 1 ? `${f}<sup>${c}</sup>` : f).join(' × ');
+      steps.push({ rule: 'Prime factors (factor tree)', text: `Keep splitting into smaller factors until every piece is prime: ${pf.join(' × ')}.`, before: `${fmt(n)} = ${pow}` });
+    }
+    if (n <= 1e7) {
+      const fs = []; for (let d = 1; d * d <= n; d++) if (n % d === 0) { fs.push(d); if (d * d !== n) fs.push(n / d); }
+      fs.sort((a, b) => a - b);
+      steps.push({ rule: 'All the factors', text: `These numbers divide ${fmt(n)} evenly (${fs.length} of them). They come in pairs that multiply to ${fmt(n)}.`, before: fs.length > 40 ? fs.slice(0, 40).join(', ') + ', …' : fs.join(', ') });
+    }
+    const sq = Math.sqrt(n), cb = Math.round(Math.cbrt(n));
+    if (isInt(sq)) steps.push({ rule: 'Perfect square', text: `${fmt(sq)} × ${fmt(sq)} = ${fmt(n)}, so ${fmt(n)} is a perfect square.`, before: `√${fmt(n)} = ${fmt(sq)}` });
+    if (cb ** 3 === n && cb > 1) steps.push({ rule: 'Perfect cube', text: `${cb} × ${cb} × ${cb} = ${fmt(n)}.`, before: `∛${fmt(n)} = ${cb}` });
+    steps.push({ rule: 'Squared and square root', text: `${fmt(v)}² = ${fmt(v * v)}${isInt(sq) ? '' : `, and √${fmt(n)} ≈ ${fmt(sq)}`}.`, before: `${fmt(v)}<sup>2</sup> = ${fmt(v * v)}` });
+  } else if (!isInt(v)) {
+    const fr = toFrac(v);
+    if (fr) steps.push({ rule: 'As a fraction', text: `Read the decimal as a fraction and simplify it.`, before: `${fmt(v)} = ${fracHTML(fr[0], fr[1])}` });
+    steps.push({ rule: 'As a percent', text: 'Multiply by 100 to turn a decimal into a percent.', before: `${fmt(v)} × 100 = ${fmt(v * 100)}%` });
+    steps.push({ rule: 'Rounding', text: `To the nearest whole number: ${fmt(Math.round(v))}. To 1 decimal place: ${fmt(Math.round(v * 10) / 10)}.`, before: `${fmt(v)} ≈ ${fmt(Math.round(v))}` });
+  } else steps.push({ rule: 'Just a number', text: `${fmt(v)} is already as simple as it gets. Try an operation like + − × ÷, or an equation with x.`, before: start });
+  return { kind: 'expr', value: v, frac: toFrac(v, 1000), answer: fmt(v), lcd: fmt(v), steps, start, title: 'About this number' };
+}
+
+// ---------- inequalities: 2x + 3 > 7 ----------
+const REL = { '<': '<', '>': '>', '<=': '≤', '>=': '≥', '≤': '≤', '≥': '≥' };
+const flipRel = r => ({ '<': '>', '>': '<', '≤': '≥', '≥': '≤' })[r];
+function solveInequality(src, ctx) {
+  const m = /^(.*?)(<=|>=|≤|≥|<|>)(.*)$/.exec(src);
+  if (!m || /[<>≤≥]/.test(m[3])) throw new MathError('Use just one < or > sign.');
+  const rel = REL[m[2]];
+  const L = parse(m[1]), R = parse(m[3]);
+  const start = `${show(L, { html: true })} ${rel} ${show(R, { html: true })}`;
+  const holds = (a, b) => rel === '<' ? a < b - 1e-12 : rel === '>' ? a > b + 1e-12 : rel === '≤' ? a <= b + 1e-12 : a >= b - 1e-12;
+  if (!hasVar(L) && !hasVar(R)) {
+    const a = evalNode(L, ctx), b = evalNode(R, ctx), ok = holds(a, b);
+    return { kind: 'check', ok, answer: ok ? 'TRUE' : 'FALSE', lcd: ok ? 'trUE' : 'FALSE', start, title: 'Is it true?', steps: [{ rule: 'Compare', text: `The left side is ${fmt(a)} and the right side is ${fmt(b)}. ${fmt(a)} ${rel} ${fmt(b)} is ${ok ? 'TRUE' : 'FALSE'}.`, before: `${fmt(a)} ${rel} ${fmt(b)}` }] };
+  }
+  const fL = x => evalNode(L, ctx, x), fR = x => evalNode(R, ctx, x);
+  const pL = polyOf(fL), pR = polyOf(fR), steps = [];
+  if (pL && pR && Math.abs(pL.a - pR.a) < 1e-12) {
+    let m1 = pL.b, k = pL.c, n = pR.b, j = pR.c, r = rel;
+    const simple = sideStr(m1, k) + ` ${r} ` + sideStr(n, j);
+    if (simple.replace(/<[^>]+>|\s/g, '') !== start.replace(/<[^>]+>|\s/g, '')) steps.push({ rule: 'Simplify each side', text: 'Multiply out brackets and combine like terms, just like an equation.', before: start, after: simple });
+    if (Math.abs(n) > 1e-12) { steps.push({ rule: 'Get the x’s on one side', text: `${n > 0 ? 'Subtract' : 'Add'} ${polyStr({ b: Math.abs(n) })} ${n > 0 ? 'from' : 'to'} both sides. Adding or subtracting never flips the sign.`, before: simple, after: `${sideStr(clean(m1 - n), k)} ${r} ${fmt(j)}` }); m1 = clean(m1 - n); }
+    if (Math.abs(m1) < 1e-12) { const ok = holds(k, j); steps.push({ rule: ok ? 'Always true' : 'Never true', text: `The x's cancel, leaving ${fmt(k)} ${r} ${fmt(j)}, which is ${ok ? 'always true — every x works' : 'never true — no x works'}.`, before: `${fmt(k)} ${r} ${fmt(j)}` }); return { kind: 'eqn', answer: ok ? 'every x' : 'no solution', lcd: ok ? 'ALL' : 'nonE', steps, start, title: 'Solve the inequality' }; }
+    if (Math.abs(k) > 1e-12) { const nj = clean(j - k); steps.push({ rule: 'Undo the plain number', text: `${k > 0 ? 'Subtract' : 'Add'} ${fmt(Math.abs(k))} ${k > 0 ? 'from' : 'to'} both sides: ${fmt(j)} ${k > 0 ? '−' : '+'} ${fmt(Math.abs(k))} = ${fmt(nj)}.`, before: `${sideStr(m1, k)} ${r} ${fmt(j)}`, after: `${sideStr(m1, 0)} ${r} ${fmt(nj)}` }); j = nj; }
+    const x = clean(j / m1);
+    if (Math.abs(m1 - 1) > 1e-12) {
+      const nr = m1 < 0 ? flipRel(r) : r;
+      steps.push({ rule: m1 < 0 ? 'Divide — and FLIP the sign!' : 'Undo the multiply', text: m1 < 0 ? `Divide both sides by ${fmt(m1)}. When you multiply or divide by a NEGATIVE number, the inequality sign flips: ${r} becomes ${nr}.` : `Divide both sides by ${fmt(m1)}.`, before: `${sideStr(m1, 0)} ${r} ${fmt(j)}`, after: `x ${nr} ${fmt(x)}` });
+      r = nr;
+    }
+    const t = r === '<' || r === '≤' ? x - 1 : x + 1;
+    steps.push({ rule: 'Check with a number', text: `Try x = ${fmt(t)} (it should work): left side = ${fmt(fL(t))}, right side = ${fmt(fR(t))}, and ${fmt(fL(t))} ${rel} ${fmt(fR(t))} is true ✔. The line on a number line has ${r === '<' || r === '>' ? 'an open circle (x can’t equal ' + fmt(x) + ')' : 'a filled circle (x can equal ' + fmt(x) + ')'} at ${fmt(x)}.`, before: `x = ${fmt(t)}` });
+    return { kind: 'eqn', answer: `x ${r} ${fmt(x)}`, lcd: fmt(x), steps, start, title: 'Solve the inequality' };
+  }
+  // anything else: find where the sides are equal, then test each section
+  const f = x => fL(x) - fR(x);
+  let roots = [];
+  if (pL && pR) {
+    const a = pL.a - pR.a, b = pL.b - pR.b, c = pL.c - pR.c, D = b * b - 4 * a * c;
+    if (D >= 0) roots = [(-b - Math.sqrt(D)) / (2 * a), (-b + Math.sqrt(D)) / (2 * a)].map(clean).sort((p, q) => p - q);
+    steps.push({ rule: 'Where are the sides equal?', text: `First solve ${polyStr({ a, b, c }, false)} = 0 as if it were an equation. ${roots.length ? `That gives x = ${[...new Set(roots)].map(fmt).join(' and x = ')}.` : 'It has no real solutions, so the sides are never equal.'}`, before: `${polyStr({ a, b, c })} = 0` });
+  } else {
+    let px = -1000, pv = f(px);
+    for (let x = -999.95; x <= 1000; x += 0.05) { const v = f(x); if (isFinite(v) && isFinite(pv) && pv * v < 0) { let lo = x - 0.05, hi = x; for (let k2 = 0; k2 < 60; k2++) { const mid = (lo + hi) / 2; if (f(lo) * f(mid) <= 0) hi = mid; else lo = mid; } roots.push(clean((lo + hi) / 2)); } px = x; pv = v; if (roots.length > 8) break; }
+    steps.push({ rule: 'Where are the sides equal?', text: `I searched from −1000 to 1000 for where both sides are equal: ${roots.length ? roots.map(fmt).join(', ') : 'nowhere'}.`, before: start });
+  }
+  roots = [...new Set(roots)];
+  const edges = [-Infinity, ...roots, Infinity], parts = [];
+  for (let i = 0; i < edges.length - 1; i++) {
+    const lo = edges[i], hi = edges[i + 1];
+    const t = !isFinite(lo) && !isFinite(hi) ? 0 : !isFinite(lo) ? hi - 1 : !isFinite(hi) ? lo + 1 : (lo + hi) / 2;
+    const ok = holds(fL(t), fR(t));
+    parts.push({ lo, hi, ok, t: clean(t) });
+  }
+  const inc = rel === '≤' || rel === '≥';
+  steps.push({ rule: 'Test each section', text: 'The equal points cut the number line into sections. Try one number from each section: ' + parts.map(p => `x = ${fmt(p.t)} ${p.ok ? 'works ✔' : 'doesn’t ✘'}`).join('; ') + '.', before: parts.map(p => (p.ok ? '✔ ' : '✘ ') + (isFinite(p.lo) ? fmt(p.lo) + ' < ' : '') + 'x' + (isFinite(p.hi) ? ' < ' + fmt(p.hi) : '')).join('   ') });
+  const lt = inc ? '≤' : '<';
+  const ans = parts.filter(p => p.ok).map(p => !isFinite(p.lo) && !isFinite(p.hi) ? 'every x' : !isFinite(p.lo) ? `x ${lt} ${fmt(p.hi)}` : !isFinite(p.hi) ? `x ${inc ? '≥' : '>'} ${fmt(p.lo)}` : `${fmt(p.lo)} ${lt} x ${lt} ${fmt(p.hi)}`);
+  const answer = ans.length ? ans.join(' or ') : (inc && roots.length ? roots.map(r => `x = ${fmt(r)}`).join(' or ') : 'no solution');
+  steps.push({ rule: 'Answer', text: `Keep the sections that work${inc ? ' (and the equal points too, because of the “or equal” sign)' : ''}.`, before: answer });
+  return { kind: 'eqn', answer, lcd: roots.length ? fmt(roots[0]) : '', steps, start, title: 'Solve the inequality' };
+}
+
+// ---------- lists of numbers: mean, median, mode, range ----------
+function statsOf(text) {
+  const m = /^\s*(mean|median|mode|range|average|avg|stats|statistics)?\s*(?:of)?\s*\(?\s*([-−\d.\s,;]+?)\s*\)?\s*$/i.exec(text);
+  if (!m) return null;
+  const body = m[2].replace(/−/g, '-');
+  if (/^\d{1,3}(,\d{3})+(\.\d+)?$/.test(body.trim())) return null;              // that's just 1,000,000
+  const nums = body.split(/[\s,;]+/).filter(Boolean).map(Number);
+  if (nums.length < 2 || nums.some(n => !isFinite(n)) || (!m[1] && nums.length < 3 && !/[,;]/.test(body))) return null;
+  if (!/[,;\s]/.test(body.trim())) return null;
+  const want = (m[1] || 'stats').toLowerCase().replace(/average|avg/, 'mean');
+  const sorted = [...nums].sort((a, b) => a - b), n = nums.length, sum = nums.reduce((a, b) => a + b, 0), mean = clean(sum / n);
+  const mid = n % 2 ? sorted[(n - 1) / 2] : clean((sorted[n / 2 - 1] + sorted[n / 2]) / 2);
+  const cnt = {}; nums.forEach(v => cnt[v] = (cnt[v] || 0) + 1);
+  const top = Math.max(...Object.values(cnt)), modes = top > 1 ? Object.keys(cnt).filter(k => cnt[k] === top).map(Number).sort((a, b) => a - b) : [];
+  const range = clean(sorted[n - 1] - sorted[0]);
+  const list = sorted.map(fmt).join(', ');
+  const steps = [{ rule: 'Put them in order', text: `Sort the ${n} numbers from smallest to largest. It makes everything else easier.`, before: list }];
+  const stepMean = { rule: 'Mean (average)', text: `Add them all up: ${nums.map(fmt).join(' + ')} = ${fmt(sum)}. Then divide by how many there are (${n}): ${fmt(sum)} ÷ ${n} = ${fmt(mean)}.`, before: `mean = ${fmt(sum)} ÷ ${n} = ${fmt(mean)}`, method: { op: '/', a: sum, b: n } };
+  const stepMed = { rule: 'Median (middle)', text: n % 2 ? `There are ${n} numbers (odd), so the median is the one right in the middle — number ${(n + 1) / 2} in the sorted list.` : `There are ${n} numbers (even), so there are two middle numbers, ${fmt(sorted[n / 2 - 1])} and ${fmt(sorted[n / 2])}. The median is halfway between them: (${fmt(sorted[n / 2 - 1])} + ${fmt(sorted[n / 2])}) ÷ 2 = ${fmt(mid)}.`, before: `median = ${fmt(mid)}` };
+  const stepMode = { rule: 'Mode (most common)', text: modes.length ? `${modes.map(fmt).join(' and ')} ${modes.length > 1 ? 'show' : 'shows'} up the most (${top} times).` : 'Every number shows up the same number of times, so there is no mode.', before: `mode = ${modes.length ? modes.map(fmt).join(', ') : 'none'}` };
+  const stepRange = { rule: 'Range (spread)', text: `Biggest minus smallest: ${fmt(sorted[n - 1])} − ${fmt(sorted[0])} = ${fmt(range)}.`, before: `range = ${fmt(range)}` };
+  const pick = { mean: [stepMean], median: [stepMed], mode: [stepMode], range: [stepRange] }[want] || [stepMean, stepMed, stepMode, stepRange];
+  steps.push(...pick);
+  const answer = want === 'mean' ? `mean = ${fmt(mean)}` : want === 'median' ? `median = ${fmt(mid)}` : want === 'mode' ? `mode = ${modes.length ? modes.map(fmt).join(', ') : 'none'}` : want === 'range' ? `range = ${fmt(range)}` : `mean ${fmt(mean)}, median ${fmt(mid)}, mode ${modes.length ? modes.map(fmt).join(', ') : 'none'}, range ${fmt(range)}`;
+  const value = want === 'median' ? mid : want === 'range' ? range : want === 'mode' ? (modes[0] ?? NaN) : mean;
+  return { kind: 'stats', value, answer, lcd: fmt(value), steps, start: `${m[1] ? m[1].toLowerCase() + ' of ' : ''}${nums.map(fmt).join(', ')}`, title: 'Statistics' };
 }

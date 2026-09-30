@@ -81,6 +81,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
     @objc func reload() { load(query: "") }
     @objc func showCalc() { web.evaluateJavaScript("MH.show('calc')") }
     @objc func showPractice() { web.evaluateJavaScript("MH.show('practice')") }
+    @objc func showDraw() { web.evaluateJavaScript("MH.show('draw')") }
+    @objc func showGraph() { web.evaluateJavaScript("MH.show('graph')") }
+    @objc func showGeo() { web.evaluateJavaScript("MH.show('geo')") }
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let a = NSAlert(); a.messageText = message; a.runModal(); completionHandler()
@@ -116,7 +119,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, 
         let viewItem = NSMenuItem(); main.addItem(viewItem)
         let v = NSMenu(title: "View")
         v.addItem(withTitle: "Calculator", action: #selector(showCalc), keyEquivalent: "1").target = self
-        v.addItem(withTitle: "Practice", action: #selector(showPractice), keyEquivalent: "2").target = self
+        v.addItem(withTitle: "Draw", action: #selector(showDraw), keyEquivalent: "2").target = self
+        v.addItem(withTitle: "Graph", action: #selector(showGraph), keyEquivalent: "3").target = self
+        v.addItem(withTitle: "Geometry", action: #selector(showGeo), keyEquivalent: "4").target = self
+        v.addItem(withTitle: "Practice", action: #selector(showPractice), keyEquivalent: "5").target = self
         v.addItem(.separator())
         v.addItem(NSMenuItem(title: "Toggle Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f"))
         viewItem.submenu = v
